@@ -68,8 +68,8 @@
   <canvas id="cv" width="480" height="270"></canvas>
   <div id="ui">
     <div id="topbar">
-      <div>FALA <b id="wave">1</b> &nbsp;·&nbsp; POZOSTAŁO <b id="left">0</b></div>
-      <div>ŚCIĘTE <b id="kills">0</b></div>
+      <div><b id="biome">NOCNY BÓR</b> &nbsp;·&nbsp; FALA <b id="wave">1</b> &nbsp;·&nbsp; ZOSTAŁO <b id="left">0</b></div>
+      <div>ŚCIĘTE <b id="kills">0</b> &nbsp;·&nbsp; PKT <b id="score">0</b> &nbsp;·&nbsp; REKORD <b id="best">0</b></div>
     </div>
     <canvas id="mini" width="72" height="72"></canvas>
     <div id="msg"></div>
@@ -108,8 +108,11 @@ const zbuf = new Float32Array(W);
 const mini = document.getElementById('mini');
 const mctx = mini.getContext('2d');
 
-const MAXFOG = 13.5;                 // dystans całkowitego zaniku we mgle
-const FOG = [10, 15, 22];            // kolor mgły (nocny las)
+// Mgła i jej zasięg zmieniają się wraz z biomem, a kolor mgły jest wpalany
+// w poziomy przyciemnienia tekstur — dlatego przy zmianie poziomu przebudowujemy
+// cały zestaw grafik (patrz rebuildArt()).
+let MAXFOG = 13.5;                   // dystans całkowitego zaniku we mgle
+let FOG = [10, 15, 22];              // kolor mgły
 
 /* ---------- narzędzia ---------- */
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
@@ -155,21 +158,117 @@ const RAW = [
  "#..............................#",
  "################################",
 ];
-const MH = RAW.length;
-const MW = Math.max(...RAW.map(r=>r.length));
-const map = [];
-for(let y=0;y<MH;y++){
-  const row = new Uint8Array(MW);
-  for(let x=0;x<MW;x++){
-    const c = RAW[y][x] || '.';
-    let v = 0;
-    if(c==='#') v=1; else if(c==='B') v=2; else if(c==='M') v=3;
-    if(x===0||y===0||x===MW-1||y===MH-1) v=1;   // zawsze domknięta granica
-    row[x]=v;
-  }
-  map.push(row);
-}
+let map = [], MW = 0, MH = 0;
 const cell = (x,y)=> (x<0||y<0||x>=MW||y>=MH) ? 1 : map[y|0][x|0];
+
+function applyMap(g){ map = g.m; MW = g.w; MH = g.h; }
+
+// Poziom 1 to ręcznie ułożona mapa z RAW — znajomy start przed proceduralnymi.
+function mapFromRAW(){
+  const h = RAW.length, w = Math.max(...RAW.map(r=>r.length));
+  const m = [];
+  for(let y=0;y<h;y++){
+    const row = new Uint8Array(w);
+    for(let x=0;x<w;x++){
+      const c = RAW[y][x] || '.';
+      let v = 0;
+      if(c==='#') v=1; else if(c==='B') v=2; else if(c==='M') v=3;
+      if(x===0||y===0||x===w-1||y===h-1) v=1;   // zawsze domknięta granica
+      row[x]=v;
+    }
+    m.push(row);
+  }
+  return { m, w, h };
+}
+
+/* ---------- generator map ---------- */
+// Rozrzuca kępy w duchu ręcznej mapy: bloki, żywopłoty, puste w środku
+// kwadraty i pojedyncze drzewa. Gęstość rośnie z poziomem.
+function genMap(seed, level){
+  const rnd = mulberry32(seed);
+  const w = 32 + (rnd()*7|0), h = 32 + (rnd()*7|0);
+  const m = [];
+  for(let y=0;y<h;y++) m.push(new Uint8Array(w));
+  for(let x=0;x<w;x++){ m[0][x]=1; m[h-1][x]=1; }
+  for(let y=0;y<h;y++){ m[y][0]=1; m[y][w-1]=1; }
+  const set=(x,y,v)=>{ if(x>0&&y>0&&x<w-1&&y<h-1) m[y][x]=v; };
+
+  const density = Math.min(0.115, 0.060 + (level-1)*0.006);
+  const clumps  = Math.round(w*h*density/3);
+  for(let i=0;i<clumps;i++){
+    const x = 1+(rnd()*(w-2)|0), y = 1+(rnd()*(h-2)|0);
+    const mat = rnd()<0.55 ? 2 : (rnd()<0.55 ? 1 : 3);
+    const shape = rnd();
+    if(shape<0.28){                       // zwarty blok
+      const bw=1+(rnd()*3|0), bh=1+(rnd()*3|0);
+      for(let a=0;a<bw;a++) for(let b=0;b<bh;b++) set(x+a,y+b,mat);
+    } else if(shape<0.55){                // żywopłot
+      const len=2+(rnd()*5|0), hor=rnd()<0.5;
+      for(let a=0;a<len;a++) set(x+(hor?a:0), y+(hor?0:a), mat);
+    } else if(shape<0.78){                // pusty w środku kwadrat — jak MMMM w oryginale
+      const s=3+(rnd()*2|0);
+      for(let a=0;a<s;a++){ set(x+a,y,mat); set(x+a,y+s-1,mat); set(x,y+a,mat); set(x+s-1,y+a,mat); }
+    } else {                              // kępa
+      set(x,y,mat);
+      if(rnd()<0.5) set(x+1,y,mat);
+      if(rnd()<0.5) set(x,y+1,mat);
+      if(rnd()<0.25) set(x+1,y+1,mat);
+    }
+  }
+  return { m, w, h };
+}
+
+// Zamurowuje wszystkie obszary poza największym spójnym — inaczej wrogowie
+// zespawnowani w odciętej kieszeni nigdy nie dojdą i fala nigdy się nie skończy.
+// Sąsiedztwo 4-kierunkowe, bo tryMove przesuwa się osobno po osiach:
+// przejście „po skosie" nie istnieje.
+function largestRegion(m,w,h){
+  const seen = new Uint8Array(w*h);
+  const regions = [];
+  let bestSize = 0, best = null;
+  const stack = [];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+    if(m[y][x]!==0 || seen[y*w+x]) continue;
+    stack.length=0; stack.push(x,y); seen[y*w+x]=1;
+    const reg=[];
+    while(stack.length){
+      const cy=stack.pop(), cx=stack.pop();
+      reg.push(cy*w+cx);
+      if(cx>1     && m[cy][cx-1]===0 && !seen[cy*w+cx-1]){ seen[cy*w+cx-1]=1; stack.push(cx-1,cy); }
+      if(cx<w-2   && m[cy][cx+1]===0 && !seen[cy*w+cx+1]){ seen[cy*w+cx+1]=1; stack.push(cx+1,cy); }
+      if(cy>1     && m[cy-1][cx]===0 && !seen[(cy-1)*w+cx]){ seen[(cy-1)*w+cx]=1; stack.push(cx,cy-1); }
+      if(cy<h-2   && m[cy+1][cx]===0 && !seen[(cy+1)*w+cx]){ seen[(cy+1)*w+cx]=1; stack.push(cx,cy+1); }
+    }
+    regions.push(reg);
+    if(reg.length>bestSize){ bestSize=reg.length; best=reg; }
+  }
+  for(const reg of regions){
+    if(reg===best) continue;
+    for(const idx of reg) m[(idx/w)|0][idx%w] = 1;
+  }
+  return bestSize;
+}
+
+// Powtarza losowanie, aż mapa jest dość otwarta i ma choć jedną polanę 3x3
+// (findOpenSpot potrzebuje jej na punkt startowy gracza).
+function buildMap(seed, level){
+  for(let attempt=0; attempt<60; attempt++){
+    const g = genMap(seed + attempt*7919, level);
+    const open = largestRegion(g.m, g.w, g.h);
+    if(open < g.w*g.h*0.42) continue;
+    let has3=false;
+    for(let y=2;y<g.h-2 && !has3;y++){
+      for(let x=2;x<g.w-2;x++){
+        let ok=true;
+        for(let oy=-1;oy<=1 && ok;oy++) for(let ox=-1;ox<=1;ox++)
+          if(g.m[y+oy][x+ox]!==0){ ok=false; break; }
+        if(ok){ has3=true; break; }
+      }
+    }
+    if(has3) return g;
+  }
+  return mapFromRAW();          // awaryjnie: znana, na pewno grywalna mapa
+}
 
 /* ============================================================
    TEKSTURY (proceduralne, z 32 poziomami przyciemnienia)
@@ -201,31 +300,87 @@ function shadeLevels(tex, n){
   return tex;
 }
 
-function texBark(){
+/* ---------- biomy ----------
+   Każdy poziom (10 fal) to inny biom: inna mgła, inne tekstury ścian i
+   podłoża, inne niebo i inny odcień samych drzew. */
+const BIOMES = [
+  { name:'NOCNY BÓR', fog:[10,15,22], maxfog:13.5,
+    stone:'#3a3d42', stoneRGB:[70,74,80],
+    bark:'#4a3524', barkDark:[30,20,12], barkLite:[120,92,60], knot:['#2b1d12','#5c452e'],
+    moss:[40,90,30], mossVar:[40,70,40], vine:'rgba(50,110,45,.6)',
+    grass:'#1d2c17', grassA:[28,52,22], grassAVar:[22,40,18],
+    grassB:[12,24,10], grassBVar:[14,20,10], litter:[70,55,30], sparkle:'rgba(190,190,120,.35)',
+    treeTint:null, mini:['#4a4f56','#6a4b30','#3d5c3a'],
+    sky:{ stops:['#04060d','#0b1522','#16242a','#0a1210'], stars:700, moon:true,
+          cloud:'40,55,70', treeline:['#0a140e','#08110c','#050c08'] } },
+
+  { name:'TRZĘSAWISKO', fog:[12,22,17], maxfog:10.5,
+    stone:'#2c3a31', stoneRGB:[56,74,62],
+    bark:'#3b3526', barkDark:[18,22,14], barkLite:[92,100,62], knot:['#1d2216','#4a5230'],
+    moss:[45,105,45], mossVar:[45,80,40], vine:'rgba(70,130,60,.75)',
+    grass:'#1a2418', grassA:[34,54,28], grassAVar:[24,36,16],
+    grassB:[26,30,16], grassBVar:[18,18,10], litter:[60,58,32], sparkle:'rgba(150,200,150,.30)',
+    treeTint:'rgba(24,60,42,.22)', mini:['#3c4a41','#5a5230','#3f6444'],
+    sky:{ stops:['#070d0b','#0d1a14','#16261c','#0b1410'], stars:120, moon:false,
+          cloud:'50,80,62', treeline:['#0b1610','#08120c','#050d08'] } },
+
+  { name:'ZGLISZCZA', fog:[30,18,13], maxfog:15.5,
+    stone:'#3b3532', stoneRGB:[74,66,60],
+    bark:'#2e241f', barkDark:[14,10,8], barkLite:[96,66,44], knot:['#140e0a','#4a3020'],
+    moss:[90,50,25], mossVar:[70,40,20], vine:'rgba(120,60,30,.5)',
+    grass:'#241d19', grassA:[52,42,34], grassAVar:[30,24,18],
+    grassB:[26,20,17], grassBVar:[18,14,10], litter:[90,50,28], sparkle:'rgba(255,140,60,.45)',
+    treeTint:'rgba(40,20,12,.42)', mini:['#544a44','#4a3a30','#6a4a30'],
+    sky:{ stops:['#120806','#24100a','#3a1a0e','#180b07'], stars:90, moon:false,
+          cloud:'90,50,36', treeline:['#1a0e09','#140a07','#0d0705'] } },
+
+  { name:'SZRON', fog:[34,42,52], maxfog:9.5,
+    stone:'#4a5460', stoneRGB:[96,110,126],
+    bark:'#4e4a46', barkDark:[30,32,36], barkLite:[150,160,175], knot:['#2a2c30','#6a7078'],
+    moss:[150,175,195], mossVar:[50,50,50], vine:'rgba(180,200,220,.5)',
+    grass:'#8e9aa8', grassA:[170,182,196], grassAVar:[40,40,40],
+    grassB:[120,134,150], grassBVar:[30,30,34], litter:[90,96,104], sparkle:'rgba(235,245,255,.7)',
+    treeTint:'rgba(150,178,205,.26)', mini:['#5e6a78','#5a5450','#7a8894'],
+    sky:{ stops:['#070b14','#101a2a','#1e2c40','#141c26'], stars:900, moon:true,
+          cloud:'70,90,120', treeline:['#141c26','#101720','#0b1017'] } },
+
+  { name:'GRZYBNIA', fog:[26,13,32], maxfog:11.5,
+    stone:'#3a2c44', stoneRGB:[74,56,88],
+    bark:'#42283e', barkDark:[20,10,20], barkLite:[118,70,110], knot:['#1c0e1c','#5a3452'],
+    moss:[140,60,150], mossVar:[60,40,60], vine:'rgba(150,70,160,.6)',
+    grass:'#221630', grassA:[58,34,70], grassAVar:[30,20,36],
+    grassB:[30,18,38], grassBVar:[18,12,22], litter:[110,60,120], sparkle:'rgba(220,140,255,.55)',
+    treeTint:'rgba(92,40,112,.30)', mini:['#4e3c5a','#523046','#6a4070'],
+    sky:{ stops:['#0a0512','#170a24','#261038','#120a1c'], stars:1100, moon:false,
+          cloud:'70,40,90', treeline:['#140a1c','#0f0715','#0a050e'] } },
+];
+
+function texBark(B){
   const c=makeCanvas(64,64), g=c.getContext('2d'), r=mulberry32(7);
-  g.fillStyle='#4a3524'; g.fillRect(0,0,64,64);
+  g.fillStyle=B.bark; g.fillRect(0,0,64,64);
   for(let i=0;i<70;i++){
     const x=r()*64, w=1+r()*3, h=8+r()*56, y=r()*64;
-    g.fillStyle = r()<.5 ? `rgba(30,20,12,${.3+r()*.5})` : `rgba(120,92,60,${.15+r()*.3})`;
+    g.fillStyle = r()<.5 ? `rgba(${B.barkDark[0]},${B.barkDark[1]},${B.barkDark[2]},${.3+r()*.5})`
+                         : `rgba(${B.barkLite[0]},${B.barkLite[1]},${B.barkLite[2]},${.15+r()*.3})`;
     g.fillRect(x,y,w,h);
   }
   for(let i=0;i<5;i++){                   // sęki
     const x=6+r()*52,y=6+r()*52,rr=3+r()*4;
-    g.fillStyle='#2b1d12'; g.beginPath(); g.ellipse(x,y,rr,rr*.7,0,0,7); g.fill();
-    g.fillStyle='#5c452e'; g.beginPath(); g.ellipse(x,y,rr*.5,rr*.35,0,0,7); g.fill();
+    g.fillStyle=B.knot[0]; g.beginPath(); g.ellipse(x,y,rr,rr*.7,0,0,7); g.fill();
+    g.fillStyle=B.knot[1]; g.beginPath(); g.ellipse(x,y,rr*.5,rr*.35,0,0,7); g.fill();
   }
   g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(0,0,64,2); g.fillRect(0,62,64,2);
   return grab(c);
 }
-function texStone(moss){
+function texStone(moss,B){
   const c=makeCanvas(64,64), g=c.getContext('2d'), r=mulberry32(moss?31:13);
-  g.fillStyle='#3a3d42'; g.fillRect(0,0,64,64);
+  g.fillStyle=B.stone; g.fillRect(0,0,64,64);
   for(let row=0;row<4;row++){
     const off = (row%2)*8;
     for(let col=-1;col<5;col++){
       const x=col*16+off+1, y=row*16+1, w=14, h=14;
       const t=.6+r()*.4;
-      g.fillStyle=`rgb(${(70*t)|0},${(74*t)|0},${(80*t)|0})`;
+      g.fillStyle=`rgb(${(B.stoneRGB[0]*t)|0},${(B.stoneRGB[1]*t)|0},${(B.stoneRGB[2]*t)|0})`;
       g.fillRect(x,y,w,h);
       g.fillStyle='rgba(255,255,255,.06)'; g.fillRect(x,y,w,2);
       g.fillStyle='rgba(0,0,0,.28)'; g.fillRect(x,y+h-2,w,2);
@@ -235,75 +390,77 @@ function texStone(moss){
   if(moss){
     for(let i=0;i<90;i++){
       const x=r()*64,y=r()*64,rr=1+r()*5;
-      g.fillStyle=`rgba(${40+r()*40|0},${90+r()*70|0},${30+r()*40|0},${.25+r()*.5})`;
+      g.fillStyle=`rgba(${B.moss[0]+r()*B.mossVar[0]|0},${B.moss[1]+r()*B.mossVar[1]|0},${B.moss[2]+r()*B.mossVar[2]|0},${.25+r()*.5})`;
       g.beginPath(); g.ellipse(x,y,rr,rr*.7,0,0,7); g.fill();
     }
     for(let i=0;i<14;i++){                // zwisające pnącza
-      const x=r()*64; g.strokeStyle='rgba(50,110,45,.6)'; g.lineWidth=1;
+      const x=r()*64; g.strokeStyle=B.vine; g.lineWidth=1;
       g.beginPath(); g.moveTo(x,0); g.quadraticCurveTo(x+(r()*8-4),20,x+(r()*10-5),18+r()*30); g.stroke();
     }
   }
   return grab(c);
 }
-function texGrass(){
+function texGrass(B){
   const c=makeCanvas(64,64), g=c.getContext('2d'), r=mulberry32(99);
-  g.fillStyle='#1d2c17'; g.fillRect(0,0,64,64);
+  g.fillStyle=B.grass; g.fillRect(0,0,64,64);
   for(let i=0;i<900;i++){
     const x=r()*64,y=r()*64;
-    const v=r();
-    g.fillStyle = v<.55 ? `rgba(${28+r()*22|0},${52+r()*40|0},${22+r()*18|0},.9)`
-                        : `rgba(${12+r()*14|0},${24+r()*20|0},${10+r()*10|0},.9)`;
+    g.fillStyle = r()<.55
+      ? `rgba(${B.grassA[0]+r()*B.grassAVar[0]|0},${B.grassA[1]+r()*B.grassAVar[1]|0},${B.grassA[2]+r()*B.grassAVar[2]|0},.9)`
+      : `rgba(${B.grassB[0]+r()*B.grassBVar[0]|0},${B.grassB[1]+r()*B.grassBVar[1]|0},${B.grassB[2]+r()*B.grassBVar[2]|0},.9)`;
     g.fillRect(x,y,1,1+ (r()<.3?1:0));
   }
   for(let i=0;i<40;i++){                  // gałązki i liście
     const x=r()*64,y=r()*64;
-    g.fillStyle=`rgba(${70+r()*30|0},${55+r()*20|0},${30+r()*15|0},.7)`;
+    g.fillStyle=`rgba(${B.litter[0]+r()*30|0},${B.litter[1]+r()*20|0},${B.litter[2]+r()*15|0},.7)`;
     g.fillRect(x,y,2+r()*3,1);
   }
   for(let i=0;i<10;i++){
     const x=r()*64,y=r()*64;
-    g.fillStyle='rgba(190,190,120,.35)'; g.fillRect(x,y,1,1);
+    g.fillStyle=B.sparkle; g.fillRect(x,y,1,1);
   }
   return grab(c);
 }
-const TEX = [ null, shadeLevels(texStone(false),32), shadeLevels(texBark(),32), shadeLevels(texStone(true),32) ];
-const GRASS = shadeLevels(texGrass(),32);
+let TEX = null, GRASS = null;
 
 /* ---------- niebo ---------- */
 const SKY_W=1024, SKY_H=405, SKY_HZ=270;   // horyzont tekstury w wierszu 270
-const sky = (function(){
+let sky = null;
+function makeSky(B){
+  const S=B.sky;
   const c=makeCanvas(SKY_W,SKY_H), g=c.getContext('2d'), r=mulberry32(2024);
   const grd=g.createLinearGradient(0,0,0,SKY_H);
-  grd.addColorStop(0,'#04060d'); grd.addColorStop(.55,'#0b1522');
-  grd.addColorStop(.78,'#16242a'); grd.addColorStop(1,'#0a1210');
+  grd.addColorStop(0,S.stops[0]); grd.addColorStop(.55,S.stops[1]);
+  grd.addColorStop(.78,S.stops[2]); grd.addColorStop(1,S.stops[3]);
   g.fillStyle=grd; g.fillRect(0,0,SKY_W,SKY_H);
-  for(let i=0;i<700;i++){                   // gwiazdy
+  for(let i=0;i<S.stars;i++){               // gwiazdy
     const x=r()*SKY_W, y=r()*250, a=r()*.9;
     g.fillStyle=`rgba(200,220,255,${a})`; g.fillRect(x,y,1,1);
     if(r()<.05){ g.fillStyle=`rgba(200,220,255,${a*.4})`; g.fillRect(x-1,y,3,1); g.fillRect(x,y-1,1,3); }
   }
-  // księżyc + poświata
-  const halo=g.createRadialGradient(300,110,4,300,110,90);
-  halo.addColorStop(0,'rgba(190,215,255,.30)'); halo.addColorStop(.35,'rgba(140,170,220,.10)');
-  halo.addColorStop(1,'rgba(120,150,200,0)');
-  g.fillStyle=halo; g.beginPath(); g.arc(300,110,90,0,7); g.fill();
-  const face=g.createRadialGradient(292,102,2,300,110,17);
-  face.addColorStop(0,'#f2f6ff'); face.addColorStop(.7,'#cdd8ea'); face.addColorStop(1,'#9fb0c8');
-  g.fillStyle=face; g.beginPath(); g.arc(300,110,16,0,7); g.fill();
-  g.fillStyle='rgba(140,155,180,.45)';
-  g.beginPath(); g.arc(295,105,3.4,0,7); g.fill();
-  g.beginPath(); g.arc(305,116,2.4,0,7); g.fill();
-  g.beginPath(); g.arc(303,102,1.6,0,7); g.fill();
-  g.beginPath(); g.arc(293,116,1.9,0,7); g.fill();
+  if(S.moon){                               // księżyc + poświata
+    const halo=g.createRadialGradient(300,110,4,300,110,90);
+    halo.addColorStop(0,'rgba(190,215,255,.30)'); halo.addColorStop(.35,'rgba(140,170,220,.10)');
+    halo.addColorStop(1,'rgba(120,150,200,0)');
+    g.fillStyle=halo; g.beginPath(); g.arc(300,110,90,0,7); g.fill();
+    const face=g.createRadialGradient(292,102,2,300,110,17);
+    face.addColorStop(0,'#f2f6ff'); face.addColorStop(.7,'#cdd8ea'); face.addColorStop(1,'#9fb0c8');
+    g.fillStyle=face; g.beginPath(); g.arc(300,110,16,0,7); g.fill();
+    g.fillStyle='rgba(140,155,180,.45)';
+    g.beginPath(); g.arc(295,105,3.4,0,7); g.fill();
+    g.beginPath(); g.arc(305,116,2.4,0,7); g.fill();
+    g.beginPath(); g.arc(303,102,1.6,0,7); g.fill();
+    g.beginPath(); g.arc(293,116,1.9,0,7); g.fill();
+  }
   // chmury
   for(let i=0;i<26;i++){
     const x=r()*SKY_W,y=60+r()*160,w=60+r()*140,h=8+r()*16;
-    g.fillStyle=`rgba(40,55,70,${.12+r()*.2})`;
+    g.fillStyle=`rgba(${S.cloud},${.12+r()*.2})`;
     g.beginPath(); g.ellipse(x,y,w,h,0,0,7); g.fill();
   }
   // odległa linia lasu
   for(let pass=0;pass<3;pass++){
-    const base = 258 + pass*6, col=['#0a140e','#08110c','#050c08'][pass];
+    const base = 258 + pass*6, col=S.treeline[pass];
     g.fillStyle=col;
     let x=0;
     while(x<SKY_W){
@@ -315,15 +472,20 @@ const sky = (function(){
     g.fillRect(0,base,SKY_W,SKY_H-base);
   }
   return grab(c);
-})();
+}
 
 /* ============================================================
    SPRITE'Y (rysowane w 2D, potem cięte na piksele)
    ============================================================ */
 const SPR_LV = 16;
-function makeSprite(w,h,draw){
+function makeSprite(w,h,draw,tint){
   const c=makeCanvas(w,h); const g=c.getContext('2d');
   g.clearRect(0,0,w,h); draw(g,w,h);
+  if(tint){                       // odcień biomu — tylko na narysowanych pikselach
+    g.globalCompositeOperation='source-atop';
+    g.fillStyle=tint; g.fillRect(0,0,w,h);
+    g.globalCompositeOperation='source-over';
+  }
   return shadeLevels(grab(c), SPR_LV);
 }
 function jag(g,cx,cy,rr,n,rand,col){
@@ -336,7 +498,8 @@ function jag(g,cx,cy,rr,n,rand,col){
   g.closePath(); g.fill();
 }
 
-/* Rysunek jednego wrogiego drzewa. kind: 0 sadzonka, 1 dąb, 2 świerk, 3 prastare */
+/* Rysunek jednego wrogiego drzewa.
+   kind: 0 sadzonka, 1 dąb, 2 świerk, 3 prastare, 4 zakorzeniony, 5 matecznik, 6 cichosz */
 function drawTree(g,w,h,kind,frame,seed){
   const r=mulberry32(seed+frame*17);
   const t = frame/4*Math.PI*2;
@@ -347,11 +510,14 @@ function drawTree(g,w,h,kind,frame,seed){
     { bark:'#5a3f28', bark2:'#2e2013', leaf:['#3f7a2c','#2c5c1f','#55993a'], eye:'#ff6a2a' },
     { bark:'#4a3524', bark2:'#241a10', leaf:['#1f5638','#154029','#2c7048'], eye:'#63e3ff' },
     { bark:'#3a2a1e', bark2:'#181009', leaf:['#5b3f6e','#3d2a4c','#7a5690'], eye:'#ff2f2f' },
+    { bark:'#4c4a42', bark2:'#22201b', leaf:['#4a5a30','#333f20','#5f7040'], eye:'#ffab2e' },
+    { bark:'#6b4a44', bark2:'#33201e', leaf:['#b06a8e','#7d4562','#c98aa8'], eye:'#8cff6a' },
+    { bark:'#c6c2b0', bark2:'#6e6a5c', leaf:['#8f9c86','#6d7a66','#aab6a0'], eye:'#ffffff' },
   ][kind];
 
   const cx=w/2, ground=h-1;
-  const trunkW = [0.16,0.30,0.20,0.42][kind]*w;
-  const trunkTop = h*[0.52,0.46,0.40,0.30][kind];
+  const trunkW = [0.16,0.30,0.20,0.42,0.50,0.28,0.18][kind]*w;
+  const trunkTop = h*[0.52,0.46,0.40,0.30,0.44,0.48,0.34][kind];
 
   // korzenie-nogi
   g.fillStyle=pal.bark2;
@@ -378,10 +544,39 @@ function drawTree(g,w,h,kind,frame,seed){
     g.fillRect(cx-trunkW*0.4+r()*trunkW*0.8, y, 1, 3+r()*8);
   }
 
+  // cechy szczególne nowych gatunków
+  if(kind===4){                       // zakorzeniony — grube korzenie wpite w ziemię
+    g.strokeStyle=pal.bark2; g.lineCap='round';
+    for(let i=0;i<7;i++){
+      const s=(i/6-0.5)*2;
+      g.lineWidth=Math.max(2, trunkW*0.16);
+      g.beginPath();
+      g.moveTo(cx+s*trunkW*0.28, ground-h*0.20);
+      g.quadraticCurveTo(cx+s*trunkW*0.9, ground-h*0.06, cx+s*w*0.46, ground-1);
+      g.stroke();
+    }
+    g.fillStyle='rgba(90,70,40,.45)';
+    g.beginPath(); g.ellipse(cx, ground-2, w*0.46, h*0.045, 0,0,7); g.fill();
+  } else if(kind===5){                // matecznik — torebki z zarodnikami na pniu
+    for(let i=0;i<6;i++){
+      const y=trunkTop+r()*(ground-trunkTop-8), x=cx-trunkW*0.5+r()*trunkW;
+      const rr2=2+r()*3;
+      g.fillStyle='#c98aa8'; g.beginPath(); g.ellipse(x,y,rr2,rr2*1.3,0,0,7); g.fill();
+      g.fillStyle='rgba(255,220,235,.6)'; g.beginPath(); g.ellipse(x-rr2*0.3,y-rr2*0.4,rr2*0.35,rr2*0.4,0,0,7); g.fill();
+    }
+  } else if(kind===6){                // cichosz — brzozowe pręgi
+    g.fillStyle='#2f2c26';
+    for(let i=0;i<12;i++){
+      const y=trunkTop+r()*(ground-trunkTop-3);
+      const ww=trunkW*(0.25+r()*0.5);
+      g.fillRect(cx-trunkW*0.45+r()*(trunkW*0.9-ww), y, ww, 1+r()*2);
+    }
+  }
+
   // konary-ramiona
   g.strokeStyle=pal.bark; g.lineCap='round';
   for(let s=-1;s<=1;s+=2){
-    const armY = h*[0.60,0.56,0.52,0.44][kind];
+    const armY = h*[0.60,0.56,0.52,0.44,0.58,0.58,0.46][kind];
     const reach = w*0.42*(1+Math.sin(t+ (s>0?0:2))*0.12);
     g.lineWidth = Math.max(2, trunkW*0.22);
     g.beginPath();
@@ -410,7 +605,7 @@ function drawTree(g,w,h,kind,frame,seed){
       g.closePath(); g.fill();
     }
   } else {
-    const rr = w*[0.24,0.40,0.30,0.46][kind];
+    const rr = w*[0.24,0.40,0.30,0.46,0.34,0.38,0.26][kind];
     const cy = trunkTop - rr*0.35;
     for(let i=0;i<7;i++){
       const a=i/7*Math.PI*2;
@@ -423,7 +618,7 @@ function drawTree(g,w,h,kind,frame,seed){
   }
 
   // twarz w korze
-  const fy = h*[0.68,0.66,0.62,0.56][kind];
+  const fy = h*[0.68,0.66,0.62,0.56,0.66,0.68,0.58][kind];
   const ew = Math.max(2, trunkW*0.20), eg = trunkW*0.24;
   g.fillStyle='#0a0603';
   g.beginPath(); g.ellipse(cx-eg, fy, ew*1.3, ew, 0,0,7); g.fill();
@@ -477,20 +672,38 @@ function drawPickup(g,w,h,kind){
 // generowanie zestawów klatek
 const TREE_FRAMES = 4;
 const TREES = [];
-for(let k=0;k<4;k++){
-  const w=[44,64,52,84][k], h=[64,96,104,140][k];
-  const fr=[];
-  for(let f=0;f<TREE_FRAMES;f++) fr.push(makeSprite(w,h,(g,W2,H2)=>drawTree(g,W2,H2,k,f,k*101+7)));
-  TREES.push(fr);
+let STUMP=null, PICKUP=null, CONE=null;
+
+function buildSprites(B){
+  const tint = B.treeTint;
+  TREES.length = 0;
+  for(let k=0;k<7;k++){
+    const w=[44,64,52,84,76,58,40][k], h=[64,96,104,140,92,88,110][k];
+    const fr=[];
+    for(let f=0;f<TREE_FRAMES;f++) fr.push(makeSprite(w,h,(g,W2,H2)=>drawTree(g,W2,H2,k,f,k*101+7), tint));
+    TREES.push(fr);
+  }
+  STUMP  = makeSprite(48,32,drawStump,tint);
+  // znajdźki celowo BEZ odcienia — muszą pozostać czytelne w każdym biomie
+  PICKUP = [0,1,2].map(k=>makeSprite(28,28,(g,w,h)=>drawPickup(g,w,h,k)));
+  CONE = makeSprite(16,20,(g,w,h)=>{
+    g.fillStyle='#5a3a1e'; g.beginPath(); g.ellipse(w/2,h/2,w*0.3,h*0.42,0,0,7); g.fill();
+    g.fillStyle='#3a2410';
+    for(let i=0;i<5;i++) g.fillRect(w*0.2, h*(0.18+i*0.15), w*0.6, 1.5);
+    g.fillStyle='rgba(255,180,80,.5)'; g.beginPath(); g.ellipse(w*0.4,h*0.35,w*0.12,h*0.1,0,0,7); g.fill();
+  }, tint);
 }
-const STUMP  = makeSprite(48,32,drawStump);
-const PICKUP = [0,1,2].map(k=>makeSprite(28,28,(g,w,h)=>drawPickup(g,w,h,k)));
-const CONE = makeSprite(16,20,(g,w,h)=>{
-  g.fillStyle='#5a3a1e'; g.beginPath(); g.ellipse(w/2,h/2,w*0.3,h*0.42,0,0,7); g.fill();
-  g.fillStyle='#3a2410';
-  for(let i=0;i<5;i++) g.fillRect(w*0.2, h*(0.18+i*0.15), w*0.6, 1.5);
-  g.fillStyle='rgba(255,180,80,.5)'; g.beginPath(); g.ellipse(w*0.4,h*0.35,w*0.12,h*0.1,0,0,7); g.fill();
-});
+
+// Kolor mgły jest wpalony w poziomy przyciemnienia, więc zmiana biomu
+// wymaga wygenerowania całej grafiki od nowa.
+function rebuildArt(B){
+  TEX   = [ null, shadeLevels(texStone(false,B),32), shadeLevels(texBark(B),32),
+            shadeLevels(texStone(true,B),32) ];
+  GRASS = shadeLevels(texGrass(B),32);
+  sky   = makeSky(B);
+  buildSprites(B);
+  vign  = null;
+}
 
 /* ============================================================
    DŹWIĘK
@@ -530,12 +743,21 @@ function sNoise(vol,atk,dec,type,f0,f1,q){
   bf.frequency.setValueAtTime(f0,t); bf.frequency.exponentialRampToValueAtTime(Math.max(40,f1),t+atk+dec);
   s.connect(bf); env(bf,vol,atk,dec); s.start(t, Math.random()*2); s.stop(t+atk+dec+0.05);
 }
-function sTone(vol,atk,dec,wave,f0,f1){
+// `delay` planuje dźwięk w zegarze WebAudio zamiast setTimeout — nie rozjeżdża
+// się z pauzą i nie zostawia wiszących timerów po restarcie gry
+function sTone(vol,atk,dec,wave,f0,f1,delay){
   if(!AC||muted) return;
   const o=AC.createOscillator(); o.type=wave;
-  const t=AC.currentTime;
+  const t=AC.currentTime+(delay||0);
   o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+atk+dec);
-  env(o,vol,atk,dec); o.start(t); o.stop(t+atk+dec+0.05);
+  envAt(o,vol,atk,dec,t); o.start(t); o.stop(t+atk+dec+0.05);
+}
+function envAt(node, vol, atk, dec, t){
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+atk);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+atk+dec);
+  node.connect(g); g.connect(master); return g;
 }
 const SFX = {
   shotgun(){ sNoise(.55,.005,.35,'lowpass',3800,180,1); sTone(.4,.005,.25,'square',150,40); },
@@ -547,23 +769,47 @@ const SFX = {
   hurt(){    sTone(.3,.01,.35,'sawtooth',320,90); sNoise(.2,.01,.2,'bandpass',700,220,1); },
   die(){     sTone(.3,.02,1.4,'sawtooth',180,35); sNoise(.25,.05,1.2,'lowpass',700,90,1); },
   fall(){    sNoise(.3,.05,.7,'lowpass',1600,150,1); sTone(.15,.1,.6,'triangle',120,50); },
-  pick(){    sTone(.22,.01,.1,'square',660,660); setTimeout(()=>sTone(.22,.01,.14,'square',990,990),70); },
+  pick(){    sTone(.22,.01,.1,'square',660,660); sTone(.22,.01,.14,'square',990,990,0.07); },
   empty(){   sTone(.12,.002,.05,'square',180,120); },
-  wave(){    sTone(.2,.02,.5,'sawtooth',110,220); setTimeout(()=>sTone(.2,.02,.8,'sawtooth',165,330),180); },
+  wave(){    sTone(.2,.02,.5,'sawtooth',110,220); sTone(.2,.02,.8,'sawtooth',165,330,0.18); },
   swap(){    sTone(.12,.005,.06,'square',400,700); },
+  reload(){  sTone(.16,.004,.06,'square',300,180); sTone(.18,.004,.08,'square',520,260,0.09); },
+  root(){    sNoise(.28,.06,.5,'lowpass',700,90,1); sTone(.18,.05,.45,'triangle',70,38); },
 };
 
 /* ============================================================
    STAN GRY
    ============================================================ */
 const WEAPONS = [
-  { name:'SIEKIERA',  ammo:-1, cd:0.42, dmg:52, melee:true,  range:1.9 },
-  { name:'DUBELTÓWKA',ammo:'shells', cd:0.72, dmg:13, pellets:9, spread:0.13, range:15 },
+  // siekiera: zamach w łuku trafia WSZYSTKIE drzewa w stożku, x2 do sadzonek,
+  // odrzuca je i daje krótką nietykalność — narzędzie na tłum przy pustym magazynku
+  { name:'SIEKIERA',  ammo:-1, cd:0.42, dmg:52, melee:true, range:2.1,
+    arc:0.62, swing:0.11, knock:0.9, iframe:0.34 },
+  // dubeltówka: dwie lufy, potem przeładowanie — DPS ten sam, ale wymusza rytm
+  { name:'DUBELTÓWKA',ammo:'shells', cd:0.34, dmg:13, pellets:9, spread:0.13, range:15,
+    // cykl = cd + reload = 1.44 s na dwa strzały → 1.39 strzału/s, dokładnie tyle
+    // co dawne cd:0.72. Ten sam DPS, ale wymuszony rytm.
+    mag:2, reload:1.10 },
   { name:'KOSIARKA',  ammo:'bullets',cd:0.085,dmg:9,  pellets:1, spread:0.045,range:17 },
 ];
 
 let P, enemies, decals, pickups, shots, parts, wave, waveQueue, waveTimer,
-    kills, running, gameOver, started, msgTimer, camShake, flashLight, hurtFlash, bobT;
+    kills, score, running, gameOver, started, msgTimer, camShake, flashLight, hurtFlash, bobT;
+
+/* ---------- rekord ---------- */
+const BEST_KEY = 'drzewodoom.best';
+let best = { wave:0, kills:0, score:0 };
+try{
+  const raw = localStorage.getItem(BEST_KEY);
+  if(raw){ const b=JSON.parse(raw);
+    if(b && typeof b==='object') best = { wave:b.wave|0, kills:b.kills|0, score:b.score|0 }; }
+}catch(err){ /* prywatne okno albo zablokowany storage — gramy bez rekordu */ }
+function saveBest(){
+  let fresh=false;
+  if(score>best.score){ best={ wave, kills, score }; fresh=true; }
+  if(fresh){ try{ localStorage.setItem(BEST_KEY, JSON.stringify(best)); }catch(err){} }
+  return fresh;
+}
 
 // najbliższa naprawdę otwarta polana (kratka wolna razem z ośmioma sąsiadami)
 function findOpenSpot(px,py){
@@ -581,14 +827,47 @@ function findOpenSpot(px,py){
   }
   return best || any || {x:1.5,y:1.5};
 }
-const SPAWN = findOpenSpot(4.5, 4.5);
+/* ---------- poziomy ---------- */
+const WAVES_PER_LEVEL = 10;
+let level = 0, biome = BIOMES[0], levelFade = 0;
+
+// Poziom 1 to mapa z RAW; każde kolejne 10 fal to nowy, losowy las w nowym biomie.
+function enterLevel(n, first){
+  level = n;
+  biome = BIOMES[(n-1) % BIOMES.length];
+  FOG = biome.fog.slice();
+  MAXFOG = biome.maxfog;
+
+  applyMap(n===1 ? mapFromRAW() : buildMap(n*104729 + 40503, n));
+  rebuildArt(biome);
+
+  // nowy las = czysta plansza; stare drzewa i pociski zostają w poprzednim
+  enemies.length=0; shots.length=0; parts.length=0; decals.length=0; pickups.length=0;
+
+  const spot = findOpenSpot(MW*0.5, MH*0.5);
+  P.x = spot.x; P.y = spot.y; P.a = Math.random()*Math.PI*2;
+  P.swingT=0; P.reloadT=0; P.iframe=0; P.cd=0; P.pitch=0;
+  waveQueue=[]; waveTimer = first ? 1.6 : 3.2;
+  levelFade = 1;
+
+  if(!first){
+    // przejście to zarazem punkt kontrolny — bez tego dalsze biomy są nie do przejścia
+    P.hp = Math.min(P.maxhp, P.hp + 40);
+    P.shells  = Math.min(P.maxShells,  P.shells  + 12);
+    P.bullets = Math.min(P.maxBullets, P.bullets + 60);
+    SFX.wave();
+    message(`POZIOM ${level} — ${biome.name}`, 3);
+  }
+}
 
 function reset(){
-  P = { x:SPAWN.x, y:SPAWN.y, a:0.6, hp:100, maxhp:100, w:0, cd:0, pitch:0,
-        shells:24, bullets:0, maxShells:80, maxBullets:300, dead:false, kickT:0, fireT:0 };
+  P = { x:1.5, y:1.5, a:0.6, hp:100, maxhp:100, w:0, cd:0, pitch:0,
+        shells:24, bullets:0, maxShells:80, maxBullets:300, dead:false, kickT:0, fireT:0,
+        mag:WEAPONS[1].mag, reloadT:0, swingT:0, iframe:0 };
   enemies=[]; decals=[]; pickups=[]; shots=[]; parts=[];
-  wave=0; waveQueue=[]; waveTimer=1.6; kills=0;
+  wave=0; waveQueue=[]; waveTimer=1.6; kills=0; score=0;
   gameOver=false; camShake=0; flashLight=0; hurtFlash=0; bobT=0;
+  enterLevel(1, true);
   message('OBUDZIŁEŚ LAS. UCIEKAJ ALBO RĄB.', 2.6);
 }
 
@@ -598,19 +877,51 @@ function message(t,dur){
 }
 
 /* ---------- fale ---------- */
+// Liczebność wysyca się (limit 26 żywych i tak jest twardy), więc od ~fali 13
+// trudność bierze się z MOCY drzew i nowych gatunków, nie z dłuższego przeciągania.
+const MAX_WAVE_N = 26;
+function waveScale(){
+  const w = Math.max(0, wave-1);
+  return {
+    hp:    1 + Math.min(1.20, w*0.05),    // pułap +120% HP
+    dmg:   1 + Math.min(0.90, w*0.045),   // wrogowie realnie bolą coraz bardziej
+    spd:   1 + Math.min(0.35, w*0.020),
+    rate:  1 / (1 + Math.min(0.50, w*0.030)),  // krótszy odstęp między atakami
+  };
+}
+
+// pula gatunków otwierana falami: [kind, waga]
+function waveRoster(){
+  const pool = [[0, 35], [1, 35], [2, 30]];
+  if(wave<2)      return [[0,85],[1,15]];
+  if(wave<4)      return [[0,50],[1,35],[2,15]];
+  if(wave>=4)  pool.push([5, 14]);   // matecznik
+  if(wave>=6)  pool.push([4, 16]);   // zakorzeniony
+  if(wave>=8)  pool.push([6, 14]);   // cichosz
+  return pool;
+}
+function rollKind(){
+  const pool = waveRoster();
+  let total=0; for(const p of pool) total+=p[1];
+  let r=Math.random()*total;
+  for(const p of pool){ r-=p[1]; if(r<=0) return p[0]; }
+  return pool[0][0];
+}
+
 function startWave(){
+  // Co WAVES_PER_LEVEL fal las się zmienia: nowa mapa, nowy biom, nowe tekstury.
+  // Warunek `level === wave/WAVES_PER_LEVEL` sprawia, że przejście odpala się
+  // dokładnie raz — przy kolejnym wywołaniu level jest już podbity i fala rusza.
+  if(wave>0 && wave%WAVES_PER_LEVEL===0 && level === wave/WAVES_PER_LEVEL){
+    enterLevel(level+1, false);
+    return;                       // fala ruszy po odliczeniu waveTimer w nowym lesie
+  }
   wave++;
   waveQueue=[];
+  waveTimer=0;
   const boss = wave%5===0;
-  const n = 4 + Math.floor(wave*1.7);
-  for(let i=0;i<n;i++){
-    let k;
-    const roll=Math.random();
-    if(wave<2) k = roll<.85?0:1;
-    else if(wave<4) k = roll<.5?0: roll<.85?1:2;
-    else k = roll<.35?0: roll<.7?1:2;
-    waveQueue.push(k);
-  }
+  const n = Math.min(MAX_WAVE_N, 4 + Math.floor(wave*1.7));
+  for(let i=0;i<n;i++) waveQueue.push(rollKind());
   if(boss) waveQueue.push(3);
   SFX.wave();
   message(boss ? `FALA ${wave} — PRADRZEW SIĘ BUDZI!` : `FALA ${wave}`, 2.2);
@@ -623,10 +934,29 @@ const ENEMY_DEF = [
   { hp:105, spd:1.05, r:0.42, hUnits:1.45, wUnits:0.98, dmg:16, atkCd:1.3, ranged:false, score:2 },
   { hp:62,  spd:1.25, r:0.34, hUnits:1.55, wUnits:0.78, dmg:11, atkCd:1.8, ranged:true,  score:2 },
   { hp:900, spd:0.95, r:0.46, hUnits:2.35, wUnits:1.42, dmg:26, atkCd:1.1, ranged:true,  score:10 },
+  // zakorzeniony: podchodzi, wrasta w ziemię i staje się fizyczną przeszkodą —
+  // zmienia geometrię starcia, zamiast tylko dokładać obrażeń
+  { hp:150, spd:1.15, r:0.44, hUnits:1.35, wUnits:1.15, dmg:14, atkCd:1.0, ranged:false, score:3,
+    roots:true, rootAt:2.6 },
+  // matecznik: przy śmierci rozsiewa dwie sadzonki
+  { hp:80,  spd:1.20, r:0.34, hUnits:1.25, wUnits:0.82, dmg:9,  atkCd:1.2, ranged:false, score:3,
+    splits:2 },
+  // cichosz: rusza się TYLKO wtedy, gdy na niego nie patrzysz
+  { hp:70,  spd:3.10, r:0.30, hUnits:1.60, wUnits:0.60, dmg:20, atkCd:1.4, ranged:false, score:4,
+    shy:true },
 ];
+const FOV_HALF = 0.62;   // połowa poziomego pola widzenia (~71° łącznie)
 
 function freeCell(x,y,r){
   return cell(x-r,y-r)===0 && cell(x+r,y-r)===0 && cell(x-r,y+r)===0 && cell(x+r,y+r)===0;
+}
+function makeEnemy(kind,x,y){
+  const d=ENEMY_DEF[kind], s=waveScale();
+  const hp = d.hp*s.hp;
+  return { x, y, kind, hp, maxhp:hp,
+           dmg:d.dmg*s.dmg, spd:d.spd*s.spd, atkCd:d.atkCd*s.rate,
+           atk:Math.random()*d.atkCd, anim:Math.random()*4, flash:0,
+           dying:0, dead:false, groan:Math.random()*6, rooted:false };
 }
 function spawnEnemy(kind){
   const d=ENEMY_DEF[kind];
@@ -635,9 +965,7 @@ function spawnEnemy(kind){
     if(!freeCell(x,y,d.r+0.1)) continue;
     const dx=x-P.x, dy=y-P.y;
     if(dx*dx+dy*dy < 49) continue;                 // nie bliżej niż 7 jednostek
-    enemies.push({ x,y,kind, hp:d.hp*(1+ (wave-1)*0.05), maxhp:d.hp*(1+(wave-1)*0.05),
-                   atk:Math.random()*d.atkCd, anim:Math.random()*4, flash:0,
-                   dying:0, dead:false, groan:Math.random()*6 });
+    enemies.push(makeEnemy(kind,x,y));
     if(Math.random()<0.35) SFX.groan();
     return true;
   }
@@ -689,7 +1017,7 @@ document.addEventListener('pointerlockchange',()=>{
 
 function selectWeapon(i){
   if(i===P.w || P.dead) return;
-  P.w=i; P.cd=Math.max(P.cd,0.18); SFX.swap(); updateHUD();
+  P.w=i; P.cd=Math.max(P.cd,0.18); P.reloadT=0; SFX.swap(); updateHUD();
 }
 
 /* ============================================================
@@ -702,11 +1030,15 @@ function showTitle(){
     <h1>DRZEWODOOM</h1>
     <h2>Las się obudził. I jest wściekły.</h2>
     <p>Zbudziłeś się na polanie z siekierą w dłoni. Drzewa wyrwały korzenie z ziemi
-       i idą po Ciebie. Przetrwaj kolejne fale — co piątą budzi się PRADRZEW.</p>
+       i idą po Ciebie. Przetrwaj kolejne fale — co piątą budzi się PRADRZEW.
+       Uważaj na ZAKORZENIONE (blokują drogę), MATECZNIKI (pękają na sadzonki)
+       i CICHOSZE (ruszają się tylko wtedy, gdy nie patrzysz).
+       Co 10 fal las się zmienia — nowa mapa i nowa sceneria.</p>
     <div class="keys">
       <b>WSAD</b> ruch &nbsp;·&nbsp; <b>MYSZ</b> rozglądanie &nbsp;·&nbsp; <b>LPM / SPACJA</b> atak<br>
-      <b>SHIFT</b> bieg &nbsp;·&nbsp; <b>1 2 3</b> broń (rolka też) &nbsp;·&nbsp; <b>M</b> dźwięk &nbsp;·&nbsp; <b>ESC</b> pauza
+      <b>SHIFT</b> bieg &nbsp;·&nbsp; <b>1 2 3</b> broń (rolka też) &nbsp;·&nbsp; <b>R</b> przeładuj &nbsp;·&nbsp; <b>M</b> dźwięk &nbsp;·&nbsp; <b>ESC</b> pauza
     </div>
+    ${best.score>0 ? `<div id="stats">REKORD: <b>${best.score}</b> pkt · fala <b>${best.wave}</b> · ścięte <b>${best.kills}</b></div>` : ''}
     <div class="go">KLIKNIJ, ABY ZACZĄĆ</div>`;
   overlay.onclick = ()=>newGame();
 }
@@ -715,7 +1047,7 @@ function pause(){
   if(document.pointerLockElement===cv) document.exitPointerLock();
   overlay.classList.remove('hidden');
   overlay.innerHTML = `<h1 style="font-size:calc(16px*var(--s))">PAUZA</h1>
-     <div class="keys">Fala <b>${wave}</b> · ścięte drzewa <b>${kills}</b></div>
+     <div class="keys">Poziom <b>${level}</b> — ${biome.name} · fala <b>${wave}</b> · ścięte <b>${kills}</b> · wynik <b>${score}</b></div>
      <div class="go">KLIKNIJ, ABY WRÓCIĆ</div>`;
   overlay.onclick = ()=>resume();
 }
@@ -726,12 +1058,17 @@ function resume(){
 }
 function endGame(){
   gameOver=true; running=false; P.dead=true;
+  P.swingT=0; P.reloadT=0;
   SFX.die();
+  const fresh = saveBest();
   if(document.pointerLockElement===cv) document.exitPointerLock();
   setTimeout(()=>{
     overlay.classList.remove('hidden');
     overlay.innerHTML = `<h1 style="color:#c8452f;font-size:calc(18px*var(--s))">LAS WYGRAŁ</h1>
-      <div id="stats">Przetrwałeś do fali <b>${wave}</b><br>Ścięte drzewa: <b>${kills}</b></div>
+      <div id="stats">Przetrwałeś do fali <b>${wave}</b> w lesie <b>${biome.name}</b> (poziom ${level})<br>Ścięte drzewa: <b>${kills}</b><br>
+        Wynik: <b>${score}</b>
+        ${fresh ? '<br><span style="color:#ffe07a">NOWY REKORD!</span>'
+                : `<br><span style="color:#7fa06d">rekord: ${best.score} pkt (fala ${best.wave})</span>`}</div>
       <div class="go">KLIKNIJ LUB WCIŚNIJ R, ABY SPRÓBOWAĆ JESZCZE RAZ</div>`;
     overlay.onclick = ()=>newGame();
   }, 1200);
@@ -780,7 +1117,7 @@ function update(dt){
     const spd = 2.6*run;
     if(len>0){
       mx/=len; my/=len;
-      tryMove(P, mx*spd*dt, my*spd*dt, 0.28);
+      tryMove(P, mx*spd*dt, my*spd*dt, 0.28, freeForPlayer);
       bobT += dt*(9*run);
     } else bobT += dt*1.5;
     // gdyby gracz kiedykolwiek znalazł się w geometrii — wypchnij, nie blokuj
@@ -790,18 +1127,44 @@ function update(dt){
 
     // strzał
     P.cd-=dt; P.fireT=Math.max(0,P.fireT-dt); P.kickT=Math.max(0,P.kickT-dt*3.5);
-    if((keys.Mouse0||keys.Space) && P.cd<=0) fire();
+    P.iframe=Math.max(0,P.iframe-dt);
+
+    // zamach siekiery rozwiązuje się TUTAJ, w pętli gry — nie w setTimeout.
+    // Dzięki temu pauza go wstrzymuje, a cel jest szukany w chwili trafienia.
+    if(P.swingT>0){
+      P.swingT-=dt;
+      if(P.swingT<=0){ P.swingT=0; resolveSwing(); }
+    }
+
+    // przeładowanie dubeltówki
+    if(P.reloadT>0){
+      P.reloadT-=dt;
+      if(P.reloadT<=0){
+        P.reloadT=0;
+        const need = WEAPONS[1].mag - P.mag;
+        const take = Math.min(need, P.shells);
+        P.mag += take; P.shells -= take;
+        SFX.reload();
+        updateHUD();
+      }
+    }
+
+    if((keys.Mouse0||keys.Space) && P.cd<=0 && P.reloadT<=0) fire();
+    if(keys.KeyR && P.w===1 && P.reloadT<=0 && P.mag<WEAPONS[1].mag && P.shells>0) startReload();
   }
 
   flashLight = Math.max(0, flashLight - dt*38);
   hurtFlash  = Math.max(0, hurtFlash - dt*1.9);
   camShake   = Math.max(0, camShake - dt*7);
+  levelFade  = Math.max(0, levelFade - dt*0.85);   // rozjaśnienie po zmianie lasu
 
   // --- fale ---
   if(!P.dead){
     if(waveQueue.length===0 && enemies.length===0){
       waveTimer-=dt;
-      if(waveTimer<=0){ startWave(); waveTimer=0; }
+      // startWave() sam ustawia waveTimer — przy zmianie poziomu na przerwę
+      // między lasami, normalnie na 0
+      if(waveTimer<=0) startWave();
     } else if(waveQueue.length){
       waveTimer-=dt;
       if(waveTimer<=0 && enemies.length<28){
@@ -826,46 +1189,63 @@ function update(dt){
     e.flash = Math.max(0, e.flash-dt*9);
     const dx=P.x-e.x, dy=P.y-e.y;
     const dist=Math.hypot(dx,dy)||1e-4;
-    e.anim += dt*(2.4 + d.spd);
+    e.anim += dt*(2.4 + e.spd);
     e.groan -= dt;
     if(e.groan<=0 && dist<11){ if(Math.random()<0.5) SFX.groan(); e.groan = 4+Math.random()*9; }
 
     if(!P.dead){
       const nx=dx/dist, ny=dy/dist;
-      // separacja od innych drzew
-      let sx=0, sy=0;
-      for(let j=0;j<enemies.length;j++){
-        if(j===i) continue; const o=enemies[j]; if(o.dying>0) continue;
-        const ox=e.x-o.x, oy=e.y-o.y, od=Math.hypot(ox,oy);
-        const mind=d.r+ENEMY_DEF[o.kind].r;
-        if(od>0 && od<mind){ sx+=ox/od*(mind-od); sy+=oy/od*(mind-od); }
+
+      // zakorzeniony: gdy podejdzie dostatecznie blisko, wrasta w ziemię
+      // i od tej chwili jest przeszkodą, przez którą gracz nie przejdzie
+      if(d.roots && !e.rooted && dist < d.rootAt && losClear(e.x,e.y,P.x,P.y)){
+        e.rooted = true; SFX.root();
+        burst(e.x,e.y,0.15,14,[110,90,55]);
       }
-      const keep = d.ranged ? 3.2 : 0.75;
-      let mvx=0,mvy=0;
-      if(dist>keep){ mvx=nx; mvy=ny; }
-      else if(d.ranged && dist<keep*0.7){ mvx=-nx*0.5; mvy=-ny*0.5; }
-      // trochę bocznego dryfu, żeby nie szły idealnie w linii
-      const drift=Math.sin(e.anim*0.7)*0.35;
-      mvx += -ny*drift; mvy += nx*drift;
-      mvx += sx*2.2; mvy += sy*2.2;
-      const ml=Math.hypot(mvx,mvy);
-      if(ml>0.001){ tryMove(e, mvx/ml*d.spd*dt, mvy/ml*d.spd*dt, d.r); }
-      if(!freeCell(e.x,e.y,d.r)) unstick(e,d.r,dt);
+
+      // cichosz stoi jak wryty, dopóki gracz na niego patrzy
+      let frozen = false;
+      if(d.shy){
+        const inView = Math.abs(angDiff(Math.atan2(dy,dx), P.a)) < FOV_HALF;
+        frozen = inView && dist < MAXFOG && losClear(e.x,e.y,P.x,P.y);
+        e.frozen = frozen;
+        if(frozen) e.anim = 0;               // zamiera też animacyjnie
+      }
+
+      if(!e.rooted && !frozen){
+        // separacja od innych drzew
+        let sx=0, sy=0;
+        for(let j=0;j<enemies.length;j++){
+          if(j===i) continue; const o=enemies[j]; if(o.dying>0) continue;
+          const ox=e.x-o.x, oy=e.y-o.y, od=Math.hypot(ox,oy);
+          const mind=d.r+ENEMY_DEF[o.kind].r;
+          if(od>0 && od<mind){ sx+=ox/od*(mind-od); sy+=oy/od*(mind-od); }
+        }
+        const keep = d.ranged ? 3.2 : 0.75;
+        let mvx=0,mvy=0;
+        if(dist>keep){ mvx=nx; mvy=ny; }
+        else if(d.ranged && dist<keep*0.7){ mvx=-nx*0.5; mvy=-ny*0.5; }
+        // trochę bocznego dryfu, żeby nie szły idealnie w linii
+        const drift=Math.sin(e.anim*0.7)*0.35;
+        mvx += -ny*drift; mvy += nx*drift;
+        mvx += sx*2.2; mvy += sy*2.2;
+        const ml=Math.hypot(mvx,mvy);
+        if(ml>0.001){ tryMove(e, mvx/ml*e.spd*dt, mvy/ml*e.spd*dt, d.r); }
+        if(!freeCell(e.x,e.y,d.r)) unstick(e,d.r,dt);
+      }
 
       // atak
       e.atk-=dt;
-      if(e.atk<=0){
+      if(e.atk<=0 && !frozen){
         if(d.ranged && dist<10 && losClear(e.x,e.y,P.x,P.y)){
-          e.atk = d.atkCd*(0.8+Math.random()*0.5);
-          const sp=6.5;
-          shots.push({ x:e.x, y:e.y, z:0.75, vx:nx*sp, vy:ny*sp, dmg:d.dmg, life:3 });
-          SFX.hit();
+          e.atk = e.atkCd*(0.8+Math.random()*0.5);
+          fireCone(e, nx, ny, dist, e.dmg);
         } else if(!d.ranged && dist < d.r+0.55){
-          e.atk = d.atkCd;
-          hurtPlayer(d.dmg);
+          e.atk = e.atkCd;
+          hurtPlayer(e.dmg);
         } else if(d.ranged && dist < d.r+0.6){
-          e.atk = d.atkCd;
-          hurtPlayer(d.dmg*0.7);
+          e.atk = e.atkCd;
+          hurtPlayer(e.dmg*0.7);
         }
       }
     }
@@ -876,13 +1256,18 @@ function update(dt){
     const s=shots[i];
     s.life-=dt;
     const nx=s.x+s.vx*dt, ny=s.y+s.vy*dt;
-    if(cell(nx,ny)!==0 || s.life<=0){
-      burst(s.x,s.y,0.75,8,[120,90,50]); shots.splice(i,1); continue;
+    s.vz -= SHOT_G*dt;
+    const nz=s.z+s.vz*dt;
+    if(cell(nx,ny)!==0 || nz<0.04 || s.life<=0){
+      burst(s.x,s.y,Math.max(0.1,s.z),8,[120,90,50]); shots.splice(i,1); continue;
     }
-    s.x=nx; s.y=ny;
-    if(!P.dead && Math.hypot(P.x-s.x,P.y-s.y)<0.42){
-      hurtPlayer(s.dmg); burst(s.x,s.y,0.8,10,[150,110,60]); shots.splice(i,1);
+    // test przeciągnięty po odcinku klatki + kontrola wysokości: szyszka nie
+    // przeskoczy gracza przy niskim FPS i nie trafia, jeśli leci nad głową
+    if(!P.dead && nz>0.02 && nz<1.05 &&
+       segDist2(s.x,s.y,nx,ny,P.x,P.y) < 0.42*0.42){
+      hurtPlayer(s.dmg); burst(nx,ny,nz,10,[150,110,60]); shots.splice(i,1); continue;
     }
+    s.x=nx; s.y=ny; s.z=nz;
   }
 
   // --- cząstki ---
@@ -899,6 +1284,8 @@ function update(dt){
   for(let i=pickups.length-1;i>=0;i--){
     const pk=pickups[i];
     pk.t+=dt;
+    pk.life-=dt;
+    if(pk.life<=0){ pickups.splice(i,1); continue; }   // nie zaśmiecamy mapy w nieskończoność
     if(Math.hypot(P.x-pk.x,P.y-pk.y)<0.55){
       let taken=false;
       if(pk.kind===0 && P.hp<P.maxhp){ P.hp=Math.min(P.maxhp,P.hp+25); taken=true; message('+25 ŻYWICY',1); }
@@ -912,17 +1299,49 @@ function update(dt){
   updateHUD();
 }
 
-function tryMove(ent, dx, dy, r){
+function tryMove(ent, dx, dy, r, free){
+  free = free || freeCell;
   let moved=false;
-  if(freeCell(ent.x+dx, ent.y, r)){ ent.x+=dx; moved=true; }
-  if(freeCell(ent.x, ent.y+dy, r)){ ent.y+=dy; moved=true; }
+  if(free(ent.x+dx, ent.y, r)){ ent.x+=dx; moved=true; }
+  if(free(ent.x, ent.y+dy, r)){ ent.y+=dy; moved=true; }
   if(!moved){
     // oba kierunki zablokowane — spróbuj wyślizgu w bok (anty-zakleszczenie)
     const l=Math.hypot(dx,dy)||1e-6, px=-dy/l*l, py=dx/l*l;
-    if(freeCell(ent.x+px, ent.y+py, r)){ ent.x+=px; ent.y+=py; moved=true; }
-    else if(freeCell(ent.x-px, ent.y-py, r)){ ent.x-=px; ent.y-=py; moved=true; }
+    if(free(ent.x+px, ent.y+py, r)){ ent.x+=px; ent.y+=py; moved=true; }
+    else if(free(ent.x-px, ent.y-py, r)){ ent.x-=px; ent.y-=py; moved=true; }
   }
   return moved;
+}
+// zakorzenione drzewa są dla gracza twardą przeszkodą — stąd ich rola taktyczna
+function freeForPlayer(x,y,r){
+  if(!freeCell(x,y,r)) return false;
+  for(const e of enemies){
+    if(!e.rooted || e.dying>0) continue;
+    const rr = ENEMY_DEF[e.kind].r + r;
+    const ox=e.x-x, oy=e.y-y;
+    if(ox*ox+oy*oy < rr*rr) return false;
+  }
+  return true;
+}
+// kwadrat najmniejszej odległości punktu (px,py) od odcinka a->b
+function segDist2(ax,ay,bx,by,px,py){
+  const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy;
+  let t = l2>0 ? ((px-ax)*dx+(py-ay)*dy)/l2 : 0;
+  t = t<0?0:t>1?1:t;
+  const qx=ax+dx*t-px, qy=ay+dy*t-py;
+  return qx*qx+qy*qy;
+}
+const SHOT_SPD = 6.5, SHOT_G = 1.8, SHOT_Z0 = 0.75;
+function fireCone(e, nx, ny, dist, dmg){
+  const T = Math.max(0.15, dist/SHOT_SPD);
+  const vz = (0.5 - SHOT_Z0)/T + 0.5*SHOT_G*T;   // balistyka celowana w tors
+  shots.push({ x:e.x, y:e.y, z:SHOT_Z0, vx:nx*SHOT_SPD, vy:ny*SHOT_SPD, vz, dmg, life:3 });
+  SFX.hit();
+}
+const MAX_PICKUPS = 24, PICKUP_LIFE = 45;
+function addPickup(x,y,kind){
+  if(pickups.length>=MAX_PICKUPS) pickups.shift();
+  pickups.push({ x, y, kind, t:0, life:PICKUP_LIFE });
 }
 // awaryjne wypchnięcie drzewa, które wlazło w geometrię
 function unstick(e,r,dt){
@@ -945,7 +1364,7 @@ function losClear(x0,y0,x1,y1){
   return true;
 }
 function hurtPlayer(dmg){
-  if(P.dead) return;
+  if(P.dead || P.iframe>0) return;   // zamach siekierą daje chwilę oddechu
   P.hp -= dmg;
   hurtFlash = Math.min(1, hurtFlash + dmg/45);
   camShake = Math.min(6, camShake + dmg/8);
@@ -965,9 +1384,23 @@ function burst(x,y,z,n,col){
 }
 
 /* ---------- strzelanie ---------- */
+function startReload(){
+  P.reloadT = WEAPONS[1].reload;
+  P.cd = Math.max(P.cd, P.reloadT);
+  SFX.swap();
+  updateHUD();
+}
+
 function fire(){
   const w=WEAPONS[P.w];
-  if(w.ammo!==-1){
+
+  if(P.w===1){                                  // dubeltówka — magazynek dwulufowy
+    if(P.mag<=0){
+      if(P.shells>0) startReload(); else { SFX.empty(); P.cd=0.35; }
+      return;
+    }
+    P.mag--;
+  } else if(w.ammo!==-1){
     if(P[w.ammo]<=0){ SFX.empty(); P.cd=0.35; return; }
     P[w.ammo]--;
   }
@@ -975,19 +1408,9 @@ function fire(){
 
   if(w.melee){
     SFX.axe();
-    // zamach trafia najbliższe drzewo w łuku 60°
-    let best=null, bestD=1e9;
-    for(const e of enemies){
-      if(e.dying>0) continue;
-      const dx=e.x-P.x, dy=e.y-P.y, d=Math.hypot(dx,dy);
-      if(d>w.range+ENEMY_DEF[e.kind].r) continue;
-      const ang=Math.abs(angDiff(Math.atan2(dy,dx), P.a));
-      if(ang>0.55) continue;
-      if(d<bestD){ bestD=d; best=e; }
-    }
-    setTimeout(()=>{
-      if(best && !best.dead){ damage(best, w.dmg*(0.85+Math.random()*0.3)); SFX.chop(); }
-    }, 110);
+    // trafienie rozwiązuje resolveSwing() po w.swing sekund — w pętli gry
+    P.swingT = w.swing;
+    P.iframe = Math.max(P.iframe, w.iframe);
     camShake=Math.max(camShake,1.2);
     return;
   }
@@ -1000,46 +1423,115 @@ function fire(){
     const a = P.a + (Math.random()*2-1)*w.spread;
     hitscan(a, w.range, w.dmg*(0.85+Math.random()*0.3));
   }
+
+  // po opróżnieniu obu luf przeładuj automatycznie
+  if(P.w===1 && P.mag<=0 && P.shells>0) startReload();
+  updateHUD();
 }
+
+// Siekiera tnie w łuku: dostają WSZYSTKIE drzewa w stożku, sadzonki podwójnie,
+// a trafione są odrzucane. Cel szukany w chwili trafienia, nie w chwili zamachu.
+function resolveSwing(){
+  if(P.dead) return;
+  const w=WEAPONS[0];
+  let any=false;
+  const targets = enemies.slice();   // kopia: matecznik może dosiać sadzonki w trakcie
+  for(const e of targets){
+    if(e.dying>0) continue;
+    const dx=e.x-P.x, dy=e.y-P.y, dist=Math.hypot(dx,dy);
+    if(dist > w.range + ENEMY_DEF[e.kind].r) continue;
+    if(Math.abs(angDiff(Math.atan2(dy,dx), P.a)) > w.arc) continue;
+    let dmg = w.dmg*(0.85+Math.random()*0.3);
+    if(e.kind===0) dmg*=2;                       // sadzonki rąbie się jak chrust
+    damage(e,dmg);
+    if(!e.rooted && e.dying<=0){                 // odrzut — tylko niezakorzenione
+      const l=dist||1e-4;
+      tryMove(e, dx/l*w.knock, dy/l*w.knock, ENEMY_DEF[e.kind].r);
+    }
+    any=true;
+  }
+  if(any){ SFX.chop(); camShake=Math.max(camShake,1.8); }
+}
+
 function angDiff(a,b){ let d=a-b; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; return d; }
 
+// Odległość do najbliższej ściany wzdłuż promienia (DDA — bez marszu po krokach).
+function rayWallDist(ox,oy,dx,dy,maxD){
+  let mapX=ox|0, mapY=oy|0;
+  const ddx = dx===0?1e30:Math.abs(1/dx);
+  const ddy = dy===0?1e30:Math.abs(1/dy);
+  let stepX,stepY,sdx,sdy;
+  if(dx<0){ stepX=-1; sdx=(ox-mapX)*ddx; } else { stepX=1; sdx=(mapX+1-ox)*ddx; }
+  if(dy<0){ stepY=-1; sdy=(oy-mapY)*ddy; } else { stepY=1; sdy=(mapY+1-oy)*ddy; }
+  let side=0, guard=0;
+  while(guard++<512){
+    if(sdx<sdy){ sdx+=ddx; mapX+=stepX; side=0; }
+    else       { sdy+=ddy; mapY+=stepY; side=1; }
+    const d = side===0 ? sdx-ddx : sdy-ddy;
+    if(d>maxD) return maxD;
+    if(cell(mapX,mapY)!==0) return d;
+  }
+  return maxD;
+}
+
+// Analityczny promień↔okrąg: jeden test na wroga zamiast ~250 kroków marszu.
+// Znika też błąd „kwadratowego" hitboksa i przestrzeliwanie cienkich sadzonek.
 function hitscan(a, range, dmg){
   const dx=Math.cos(a), dy=Math.sin(a);
-  const step=0.06;
-  let x=P.x, y=P.y;
-  for(let t=step; t<range; t+=step){
-    x=P.x+dx*t; y=P.y+dy*t;
-    if(cell(x,y)!==0){                       // odprysk w ścianę
-      burst(x-dx*0.1, y-dy*0.1, 0.5+Math.random()*0.5, 4, [110,95,70]);
-      return;
-    }
-    for(const e of enemies){
-      if(e.dying>0) continue;
-      const r=ENEMY_DEF[e.kind].r*0.95;
-      if(Math.abs(e.x-x)<r && Math.abs(e.y-y)<r){
-        damage(e,dmg);
-        burst(x,y,0.6+Math.random()*0.7,5,[90,150,60]);
-        return;
-      }
-    }
+  const wallD = rayWallDist(P.x, P.y, dx, dy, range);
+
+  let hit=null, hitT=wallD;
+  for(const e of enemies){
+    if(e.dying>0) continue;
+    const r = ENEMY_DEF[e.kind].r;
+    const ex=e.x-P.x, ey=e.y-P.y;
+    const proj = ex*dx + ey*dy;              // rzut środka na promień
+    if(proj<=0 || proj-r>=hitT) continue;    // za plecami albo dalej niż aktualne trafienie
+    const perp2 = ex*ex+ey*ey - proj*proj;   // kwadrat odległości środka od osi promienia
+    if(perp2 > r*r) continue;
+    const t = proj - Math.sqrt(r*r - perp2); // wejście w okrąg
+    if(t<0 || t>=hitT) continue;
+    hitT=t; hit=e;
+  }
+
+  if(hit){
+    damage(hit,dmg);
+    burst(P.x+dx*hitT, P.y+dy*hitT, 0.6+Math.random()*0.7, 5, [90,150,60]);
+  } else if(wallD<range){
+    burst(P.x+dx*(wallD-0.1), P.y+dy*(wallD-0.1), 0.5+Math.random()*0.5, 4, [110,95,70]);
   }
 }
 function damage(e,dmg){
   e.hp-=dmg; e.flash=1;
   burst(e.x,e.y,0.7+Math.random()*0.6,4,[80,140,55]);
   if(e.hp<=0 && e.dying<=0){
-    e.dying=0.65; e.dead=true;
-    kills++; SFX.fall();
+    const def=ENEMY_DEF[e.kind];
+    e.dying=0.65; e.dead=true; e.rooted=false;
+    kills++;
+    score += def.score * (1 + Math.floor((wave-1)/5));   // późne fale są warte więcej
+    SFX.fall();
     burst(e.x,e.y,0.9,26,[70,130,50]);
     burst(e.x,e.y,0.4,10,[110,80,45]);
     // łupy
     const roll=Math.random();
-    if(roll<0.16) pickups.push({x:e.x,y:e.y,kind:0,t:0});
-    else if(roll<0.40) pickups.push({x:e.x,y:e.y,kind:1,t:0});
-    else if(roll<0.56) pickups.push({x:e.x,y:e.y,kind:2,t:0});
+    if(roll<0.16) addPickup(e.x,e.y,0);
+    else if(roll<0.40) addPickup(e.x,e.y,1);
+    else if(roll<0.56) addPickup(e.x,e.y,2);
     if(e.kind===3){ message('PRADRZEW POWALONY!',2.4);
-      pickups.push({x:e.x+0.6,y:e.y,kind:0,t:0});
-      pickups.push({x:e.x-0.6,y:e.y,kind:2,t:0}); }
+      addPickup(e.x+0.6,e.y,0);
+      addPickup(e.x-0.6,e.y,2); }
+    // matecznik pęka i rozsiewa sadzonki
+    if(def.splits && enemies.length < 40){
+      burst(e.x,e.y,0.8,18,[200,140,175]);
+      for(let s=0;s<def.splits;s++){
+        const a=Math.random()*Math.PI*2, off=0.5+Math.random()*0.3;
+        const sx=e.x+Math.cos(a)*off, sy=e.y+Math.sin(a)*off;
+        const sd=ENEMY_DEF[0];
+        if(!freeCell(sx,sy,sd.r)) continue;
+        enemies.push(makeEnemy(0,sx,sy));
+      }
+      message('MATECZNIK PĘKŁ — SADZONKI!',1.4);
+    }
     updateHUD();
   } else SFX.hit();
 }
@@ -1072,11 +1564,16 @@ function render(){
     const d=ENEMY_DEF[e.kind];
     let sy=1, sx=1;
     if(e.dying>0){ const t=1-e.dying/0.65; sy=1-t*0.92; sx=1+t*0.45; }
+    if(e.rooted){ sy*=0.92; sx*=1.12; }          // wrośnięty: przysiada i rozpiera się
     list.push({ x:e.x, y:e.y, tex:fr, hUnits:d.hUnits*sy, wUnits:d.wUnits*sx, flash:e.flash });
   }
   for(const d of decals) list.push({ x:d.x, y:d.y, tex:STUMP, hUnits:0.30, wUnits:0.45, flash:0 });
-  for(const pk of pickups) list.push({ x:pk.x, y:pk.y, tex:PICKUP[pk.kind],
+  for(const pk of pickups){
+    // ostatnie 5 s znajdźka miga — widać, że zaraz zniknie
+    if(pk.life<5 && (pk.life*6|0)%2) continue;
+    list.push({ x:pk.x, y:pk.y, tex:PICKUP[pk.kind],
       hUnits:0.30, wUnits:0.30, flash:0, zoff:0.10+Math.sin(pk.t*3)*0.05 });
+  }
   for(const s of shots) list.push({ x:s.x, y:s.y, tex:CONE, hUnits:0.22, wUnits:0.18, flash:0, zoff:s.z-0.11 });
 
   for(const s of list) s.d=(s.x-P.x)*(s.x-P.x)+(s.y-P.y)*(s.y-P.y);
@@ -1285,6 +1782,18 @@ function drawWeapon(){
     ctx.translate(0,-2);
     const rec = kick*14;
     ctx.translate(0,rec);
+    // przeładowanie: broń opada i łamie się w zawiasie
+    if(P.reloadT>0){
+      const rt = 1 - P.reloadT/WEAPONS[1].reload;      // 0 → 1
+      const swing = Math.sin(rt*Math.PI);              // w dół i z powrotem
+      ctx.translate(10*swing, 30*swing);
+      ctx.rotate(-0.55*swing);
+      if(swing>0.55){                                  // wyrzucone łuski
+        ctx.fillStyle='#c9a24a';
+        ctx.fillRect(-20,-96-(swing-0.55)*70, 7, 14);
+        ctx.fillRect(8, -96-(swing-0.55)*58, 7, 14);
+      }
+    }
     ctx.fillStyle='#2a2d31';
     ctx.fillRect(-26,-88,20,88); ctx.fillRect(2,-88,20,88);
     ctx.fillStyle='#3d4247'; ctx.fillRect(-26,-88,20,4); ctx.fillRect(2,-88,20,4);
@@ -1349,6 +1858,11 @@ function drawOverlayFX(){
   // winieta
   if(!vign) buildVignette();
   ctx.drawImage(vign,0,0);
+  // wygaszenie przy przejściu do nowego lasu
+  if(levelFade>0.005){
+    ctx.fillStyle=`rgba(0,0,0,${Math.min(1,levelFade)})`;
+    ctx.fillRect(0,0,W,H);
+  }
   // niski stan zdrowia — pulsowanie
   if(P.hp<35 && !P.dead){
     const a = (Math.sin(performance.now()/180)*0.5+0.5)*0.18*(1-P.hp/35);
@@ -1375,7 +1889,7 @@ function drawMini(){
       const c=cell(gx,gy);
       if(!c) continue;
       const sx=(gx-ox+R)*sc, sy=(gy-oy+R)*sc;
-      mctx.fillStyle = c===2?'#6a4b30' : c===3?'#3d5c3a' : '#4a4f56';
+      mctx.fillStyle = biome.mini[c-1] || biome.mini[0];
       mctx.fillRect(sx,sy,sc+0.6,sc+0.6);
     }
   }
@@ -1389,13 +1903,39 @@ function drawMini(){
     if(sx<0||sy<0||sx>S||sy>S) continue;
     mctx.fillStyle = pk.kind===0?'#7fe06a':'#e0c14a'; mctx.fillRect(sx-1.5,sy-1.5,3,3);
   }
+  let widoczny=false;
   for(const e of enemies){
     if(e.dying>0) continue;
     const sx=(e.x-ox+R)*sc, sy=(e.y-oy+R)*sc;
     if(sx<0||sy<0||sx>S||sy>S) continue;
-    mctx.fillStyle = e.kind===3?'#ff3b3b':'#ff8a3b';
-    const r = e.kind===3?3:2;
+    widoczny=true;
+    mctx.fillStyle = ['#ff8a3b','#ff8a3b','#5bd0ff','#ff3b3b','#ffb02e','#ff6ab0','#e8e8e8'][e.kind];
+    const r = e.kind===3?3:(e.kind===4&&e.rooted)?3:2;
     mctx.fillRect(sx-r/2,sy-r/2,r,r);
+  }
+  // żaden wróg nie mieści się na minimapie — pokaż kierunek do najbliższego,
+  // żeby ostatnie drzewa fali nie zmuszały do ślepego przeczesywania mapy
+  if(!widoczny){
+    let near=null, nd=1e9;
+    for(const e of enemies){
+      if(e.dying>0) continue;
+      const d=(e.x-ox)*(e.x-ox)+(e.y-oy)*(e.y-oy);
+      if(d<nd){ nd=d; near=e; }
+    }
+    if(near){
+      const a=Math.atan2(near.y-oy, near.x-ox);
+      const rad=S/2-8;
+      mctx.save();
+      mctx.translate(S/2+Math.cos(a)*rad, S/2+Math.sin(a)*rad);
+      mctx.rotate(a);
+      // dolny próg 0.44 — puls ma przyciągać wzrok, a nie gasić strzałkę
+      mctx.globalAlpha = 0.72 + 0.28*Math.sin(performance.now()/220);
+      mctx.fillStyle = near.kind===3 ? '#ff3b3b' : '#ffb02e';
+      mctx.beginPath();
+      mctx.moveTo(7,0); mctx.lineTo(-4,4.5); mctx.lineTo(-4,-4.5);
+      mctx.closePath(); mctx.fill();
+      mctx.restore();
+    }
   }
   // gracz
   mctx.save(); mctx.translate(S/2,S/2); mctx.rotate(P.a);
@@ -1410,17 +1950,24 @@ const el = {
   kills:document.getElementById('kills'), hpnum:document.getElementById('hpnum'),
   hpbar:document.getElementById('hpbar'), wepname:document.getElementById('wepname'),
   ammo:document.getElementById('ammo'), weplist:document.getElementById('weplist'),
+  score:document.getElementById('score'), best:document.getElementById('best'),
+  biome:document.getElementById('biome'),
 };
 function updateHUD(){
+  el.biome.textContent = `L${level} ${biome.name}`;
   el.wave.textContent = wave||1;
   el.left.textContent = enemies.filter(e=>e.dying<=0).length + waveQueue.length;
   el.kills.textContent = kills;
+  el.score.textContent = score|0;
+  el.best.textContent = best.score|0;
   el.hpnum.textContent = Math.ceil(P.hp);
   el.hpbar.style.width = clamp(P.hp/P.maxhp*100,0,100)+'%';
   el.hpbar.className = P.hp<35 ? 'low' : '';
   const w=WEAPONS[P.w];
-  el.wepname.textContent = w.name;
-  el.ammo.textContent = w.ammo===-1 ? '∞' : P[w.ammo];
+  el.wepname.textContent = P.w===1 && P.reloadT>0 ? 'ŁADOWANIE…' : w.name;
+  el.ammo.textContent = w.ammo===-1 ? '∞'
+                      : P.w===1     ? `${P.mag}/${P.shells}`
+                                    : P[w.ammo];
   el.weplist.innerHTML = [0,1,2].map(i=>`<span class="${i===P.w?'on':''}">${i+1}</span>`).join(' ');
 }
 
