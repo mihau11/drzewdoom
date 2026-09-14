@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DRZEWODOOM — Las Cię dopadnie</title>
+<title>DRZEWODOOM — Las Cię dopadnie (Pakiet A)</title>
 <style>
   :root{ --s: 3; }
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -214,6 +214,114 @@ function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const lerp =(a,b,t)=>a+(b-a)*t;
 
+/* ---------- A2: szum proceduralny (kafelkujący) ----------
+   hash2 daje powtarzalną wartość z pary współrzędnych kraty, vnoise
+   interpoluje ją dwuliniowo, a fbm składa oktawy. Krata zawija się mod `per`,
+   więc każda tekstura kafelkuje się bez szwu. */
+function hash2(x,y,seed){
+  let h = Math.imul(x,374761393) + Math.imul(y,668265263) + Math.imul(seed,1274126177);
+  h = Math.imul(h ^ (h>>>13), 1274126177);
+  return ((h ^ (h>>>16))>>>0) / 4294967296;
+}
+const smooth = t => t*t*(3-2*t);
+
+// u,v w [0,1); `per` to liczba komórek siatki na całą teksturę (musi być całkowita)
+function vnoise(u,v,per,seed){
+  const x=u*per, y=v*per;
+  const xi=Math.floor(x), yi=Math.floor(y);
+  const xf=smooth(x-xi), yf=smooth(y-yi);
+  const x0=((xi%per)+per)%per, y0=((yi%per)+per)%per;
+  const x1=(x0+1)%per,    y1=(y0+1)%per;
+  return lerp(lerp(hash2(x0,y0,seed), hash2(x1,y0,seed), xf),
+              lerp(hash2(x0,y1,seed), hash2(x1,y1,seed), xf), yf);
+}
+
+// fBm: każda kolejna oktawa dwa razy gęstsza i dwa razy cichsza
+function fbm(u,v,base,seed,oct){
+  let s=0, amp=0.5, norm=0, f=base;
+  for(let o=0;o<oct;o++){
+    s += vnoise(u,v,f,seed+o*131)*amp;
+    norm += amp; amp *= 0.5; f *= 2;
+  }
+  return s/norm;
+}
+// rozciągnięcie kontrastu wokół 0.5 — fBm sam z siebie rzadko dochodzi do skrajności
+const ctr = (v,k) => clamp((v-0.5)*k+0.5, 0, 1);
+
+function hexRGB(h){ const n=parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+
+const TEXN = 64;          // bok tekstury ścian i podłoża (potęga dwójki!)
+const VARIANTS = 3;       // A4 — ile wariantów każdego materiału
+
+/* ---------- A5: relief z mapy wysokości ----------
+   Gradient hmap rzutowany na stały kierunek światła daje wytłoczenie
+   wypalone wprost w kolor tekstury — koszt w runtime zerowy. */
+const LIGHT_X = -0.6, LIGHT_Y = -0.8;     // światło z góry-lewej, wspólne dla WSZYSTKICH tekstur
+
+function relief(h,N,lx,ly){
+  const out=new Uint8Array(N*N);
+  const K = 340*(N/64);                   // gradient maleje z rozdzielczością
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const l=h[y*N+((x-1)&(N-1))], r=h[y*N+((x+1)&(N-1))];
+    const u=h[((y-1)&(N-1))*N+x], d=h[((y+1)&(N-1))*N+x];
+    const gx=(r-l)/255, gy=(d-u)/255;
+    out[y*N+x] = clamp(128 - (gx*lx+gy*ly)*K, 0, 255)|0;
+  }
+  return out;
+}
+
+// 128 = neutralnie; 0.35 to dobry punkt startowy, 0.6 już przesadza
+function applyRelief(px, ao, N, strength){
+  for(let i=0;i<N*N;i++){
+    const c=px[i];
+    if(((c>>>24)&255)<128) continue;
+    const k = 1 + (ao[i]/255 - 0.5)*2*strength;
+    const r=(c&255)*k, g=((c>>>8)&255)*k, b=((c>>>16)&255)*k;
+    px[i] = (255<<24)
+          | ((b>255?255:b|0)<<16)
+          | ((g>255?255:g|0)<<8)
+          |  (r>255?255:r|0);
+  }
+}
+
+/* ---------- A3: mipmapy ----------
+   Daleka ściana próbkowała co dziesiąty teksel i szumiała przy każdym ruchu.
+   Trzy poziomy zmniejszonej tekstury usuwają migotanie i mieszczą się w L1. */
+const MIP_N = 3;
+
+// filtr pudełkowy 2x2; teksele w pełni przezroczyste nie brudzą średniej,
+// bo inaczej sprite'y dostają aureolę w kolorze tła
+function downsample(src,w,h){
+  const w2=w>>1, h2=h>>1, out=new Uint32Array(w2*h2);
+  for(let y=0;y<h2;y++) for(let x=0;x<w2;x++){
+    let r=0,g=0,b=0,n=0;
+    for(let dy=0;dy<2;dy++) for(let dx=0;dx<2;dx++){
+      const c=src[(y*2+dy)*w + x*2+dx];
+      if(((c>>>24)&255)<128) continue;
+      r+=c&255; g+=(c>>>8)&255; b+=(c>>>16)&255; n++;
+    }
+    // próg 2 z 4: sprite (i prześwity w koronach) zachowuje sylwetkę
+    out[y*w2+x] = n<2 ? 0
+      : (255<<24)|(((b/n)|0)<<16)|(((g/n)|0)<<8)|((r/n)|0);
+  }
+  return {w:w2,h:h2,data:out};
+}
+
+// zastępuje bezpośrednie wywołania shadeLevels(...)
+function buildTex(tex, n){
+  const mips=[{w:tex.w,h:tex.h,data:tex.data}];
+  while(mips.length<MIP_N){
+    const m=mips[mips.length-1];
+    if(m.w<=8||m.h<=8) break;
+    mips.push(downsample(m.data,m.w,m.h));
+  }
+  tex.mip = mips.map(m => shadeLevels(m, n));
+  tex.w=mips[0].w; tex.h=mips[0].h; tex.n=n;
+  return tex;
+}
+// piramida bywa krótsza niż MIP_N (małe sprite'y) — nigdy nie wychodź poza nią
+function mipOf(tex,i){ const m=tex.mip; return m[i<m.length?i:m.length-1]; }
+
 /* ============================================================
    MAPA
    ============================================================ */
@@ -403,6 +511,7 @@ const BIOMES = [
     moss:[40,90,30], mossVar:[40,70,40], vine:'rgba(50,110,45,.6)',
     grass:'#1d2c17', grassA:[28,52,22], grassAVar:[22,40,18],
     grassB:[12,24,10], grassBVar:[14,20,10], litter:[70,55,30], sparkle:'rgba(190,190,120,.35)',
+    ground2:{ grass:'#2a2117', a:[64,52,34], aVar:[24,20,12], b:[34,28,18], bVar:[16,14,8] }, canopyGap:0.42,
     treeTint:null, mini:['#4a4f56','#6a4b30','#3d5c3a'],
     sky:{ stops:['#04060d','#0b1522','#16242a','#0a1210'], stars:700, moon:true,
           cloud:'40,55,70', treeline:['#0a140e','#08110c','#050c08'] } },
@@ -413,6 +522,7 @@ const BIOMES = [
     moss:[45,105,45], mossVar:[45,80,40], vine:'rgba(70,130,60,.75)',
     grass:'#1a2418', grassA:[34,54,28], grassAVar:[24,36,16],
     grassB:[26,30,16], grassBVar:[18,18,10], litter:[60,58,32], sparkle:'rgba(150,200,150,.30)',
+    ground2:{ grass:'#16221e', a:[30,58,48], aVar:[20,30,24], b:[18,34,30], bVar:[12,18,16] }, canopyGap:0.38,
     treeTint:'rgba(24,60,42,.22)', mini:['#3c4a41','#5a5230','#3f6444'],
     sky:{ stops:['#070d0b','#0d1a14','#16261c','#0b1410'], stars:120, moon:false,
           cloud:'50,80,62', treeline:['#0b1610','#08120c','#050d08'] } },
@@ -423,6 +533,7 @@ const BIOMES = [
     moss:[90,50,25], mossVar:[70,40,20], vine:'rgba(120,60,30,.5)',
     grass:'#241d19', grassA:[52,42,34], grassAVar:[30,24,18],
     grassB:[26,20,17], grassBVar:[18,14,10], litter:[90,50,28], sparkle:'rgba(255,140,60,.45)',
+    ground2:{ grass:'#1c1614', a:[72,66,62], aVar:[26,24,22], b:[30,24,20], bVar:[14,12,10] }, canopyGap:0.62,
     treeTint:'rgba(40,20,12,.42)', mini:['#544a44','#4a3a30','#6a4a30'],
     sky:{ stops:['#120806','#24100a','#3a1a0e','#180b07'], stars:90, moon:false,
           cloud:'90,50,36', treeline:['#1a0e09','#140a07','#0d0705'] } },
@@ -433,6 +544,7 @@ const BIOMES = [
     moss:[150,175,195], mossVar:[50,50,50], vine:'rgba(180,200,220,.5)',
     grass:'#8e9aa8', grassA:[170,182,196], grassAVar:[40,40,40],
     grassB:[120,134,150], grassBVar:[30,30,34], litter:[90,96,104], sparkle:'rgba(235,245,255,.7)',
+    ground2:{ grass:'#6a7686', a:[122,134,150], aVar:[30,30,34], b:[80,92,108], bVar:[24,24,28] }, canopyGap:0.50,
     treeTint:'rgba(150,178,205,.26)', mini:['#5e6a78','#5a5450','#7a8894'],
     sky:{ stops:['#070b14','#101a2a','#1e2c40','#141c26'], stars:900, moon:true,
           cloud:'70,90,120', treeline:['#141c26','#101720','#0b1017'] } },
@@ -443,78 +555,183 @@ const BIOMES = [
     moss:[140,60,150], mossVar:[60,40,60], vine:'rgba(150,70,160,.6)',
     grass:'#221630', grassA:[58,34,70], grassAVar:[30,20,36],
     grassB:[30,18,38], grassBVar:[18,12,22], litter:[110,60,120], sparkle:'rgba(220,140,255,.55)',
+    ground2:{ grass:'#2a1a32', a:[96,54,110], aVar:[40,26,44], b:[44,24,54], bVar:[22,14,26] }, canopyGap:0.40,
     treeTint:'rgba(92,40,112,.30)', mini:['#4e3c5a','#523046','#6a4070'],
     sky:{ stops:['#0a0512','#170a24','#261038','#120a1c'], stars:1100, moon:false,
           cloud:'70,40,90', treeline:['#140a1c','#0f0715','#0a050e'] } },
 ];
 
-function texBark(B){
-  const c=makeCanvas(64,64), g=c.getContext('2d'), r=mulberry32(7);
-  g.fillStyle=B.bark; g.fillRect(0,0,64,64);
-  for(let i=0;i<70;i++){
-    const x=r()*64, w=1+r()*3, h=8+r()*56, y=r()*64;
-    g.fillStyle = r()<.5 ? `rgba(${B.barkDark[0]},${B.barkDark[1]},${B.barkDark[2]},${.3+r()*.5})`
-                         : `rgba(${B.barkLite[0]},${B.barkLite[1]},${B.barkLite[2]},${.15+r()*.3})`;
-    g.fillRect(x,y,w,h);
+/* ---------- A2/A4/A5: generatory tekstur ----------
+   Każdy generator dostaje `variant` (A4) i buduje po drodze mapę wysokości,
+   z której A5 wypala relief. Kolejność jest krytyczna: relief musi trafić
+   w bazową teksturę PRZED buildTex/shadeLevels, inaczej przemnożymy też
+   kolor mgły i najdalsze ściany zaczną migotać kontrastem. */
+function texBark(B, variant){
+  const N=TEXN, S=N/64, sd=7+(variant||0)*911;
+  const c=makeCanvas(N,N), g=c.getContext('2d');
+  const im=g.createImageData(N,N), px=new Uint32Array(im.data.buffer);
+  const base=hexRGB(B.bark), dk=B.barkDark, lt=B.barkLite;
+  const hmap=new Uint8Array(N*N);
+
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const u=x/N, v=y/N;
+    // domena zgnieciona w pionie -> włókna biegną wzdłuż pnia
+    const fib   = ctr(fbm(u, v*0.15, 12, sd, 3), 2.0);
+    // funkcja grzbietowa: |2n-1| daje ostre bruzdy zamiast miękkich plam
+    const bruzd = Math.abs(ctr(fbm(u, v*0.25, 6, sd+23, 2), 2.2)*2-1);
+    const plamy = ctr(fbm(u, v, 3, sd+41, 2), 1.8);  // duże przebarwienia
+
+    const t = clamp(0.50 + (fib-0.5)*0.62 + (0.32-bruzd)*0.85 - (plamy-0.5)*0.28, 0, 1);
+    hmap[y*N+x] = t*255|0;
+
+    const lo = t<0.5, m = lo ? t*2 : (t-0.5)*2;
+    const r = lo ? lerp(dk[0],base[0],m) : lerp(base[0],lt[0],m);
+    const gg= lo ? lerp(dk[1],base[1],m) : lerp(base[1],lt[1],m);
+    const b = lo ? lerp(dk[2],base[2],m) : lerp(base[2],lt[2],m);
+    px[y*N+x] = (255<<24)|((b|0)<<16)|((gg|0)<<8)|(r|0);
   }
-  for(let i=0;i<5;i++){                   // sęki
-    const x=6+r()*52,y=6+r()*52,rr=3+r()*4;
+
+  const ao = relief(hmap, N, LIGHT_X, LIGHT_Y);    // A5
+  applyRelief(px, ao, N, 0.35);
+  g.putImageData(im,0,0);
+
+  // sęki zostają na canvasie — kilka elips czyta się lepiej niż szum
+  const r=mulberry32(sd);
+  for(let i=0;i<5;i++){
+    const x=(6+r()*52)*S, y=(6+r()*52)*S, rr=(3+r()*4)*S;
     g.fillStyle=B.knot[0]; g.beginPath(); g.ellipse(x,y,rr,rr*.7,0,0,7); g.fill();
     g.fillStyle=B.knot[1]; g.beginPath(); g.ellipse(x,y,rr*.5,rr*.35,0,0,7); g.fill();
   }
-  g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(0,0,64,2); g.fillRect(0,62,64,2);
-  return grab(c);
+  // UWAGA: dawne ciemne pasy u góry i dołu maskowały szew kafla. Szum kafelkuje
+  // się bez szwu, więc pasy byłyby już tylko poziomymi liniami na każdym pniu.
+  const tex=grab(c); tex.h8=hmap; return tex;
 }
-function texStone(moss,B){
-  const c=makeCanvas(64,64), g=c.getContext('2d'), r=mulberry32(moss?31:13);
-  g.fillStyle=B.stone; g.fillRect(0,0,64,64);
-  for(let row=0;row<4;row++){
-    const off = (row%2)*8;
-    for(let col=-1;col<5;col++){
-      const x=col*16+off+1, y=row*16+1, w=14, h=14;
-      const t=.6+r()*.4;
-      g.fillStyle=`rgb(${(B.stoneRGB[0]*t)|0},${(B.stoneRGB[1]*t)|0},${(B.stoneRGB[2]*t)|0})`;
-      g.fillRect(x,y,w,h);
-      g.fillStyle='rgba(255,255,255,.06)'; g.fillRect(x,y,w,2);
-      g.fillStyle='rgba(0,0,0,.28)'; g.fillRect(x,y+h-2,w,2);
+
+function texStone(moss, B, variant){
+  const N=TEXN, S=N/64, sd=(moss?31:13)+(variant||0)*911;
+  const c=makeCanvas(N,N), g=c.getContext('2d');
+  const im=g.createImageData(N,N), px=new Uint32Array(im.data.buffer);
+  const base=B.stoneRGB, hmap=new Uint8Array(N*N);
+  const BS=16*S;                                   // bok bloku razem ze spoiną
+
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const u=x/N, v=y/N;
+    const row=Math.floor(y/BS), off=(row&1)*(BS/2);
+    const col=Math.floor((x-off)/BS);
+    const lx=x-off-col*BS, ly=y-row*BS;
+    const e=Math.min(lx, BS-1-lx, ly, BS-1-ly)/S;  // odległość od spoiny (w pikselach 64-ki)
+    const cet=(ctr(fbm(u,v,8,sd,3),2.2)-0.5)*0.36; // cętkowanie ±18%
+    const tb=0.6+hash2(col,row,sd)*0.4;            // jasność pojedynczego bloku
+    let k, hgt;
+    if(e<1){ k=tb*0.42; hgt=45; }                  // spoina — wgłębiona
+    else{
+      k=tb*(1+cet);
+      if(ly<2*S)           k*=1.14;                // światło na górnej krawędzi
+      else if(ly>BS-1-2*S) k*=0.74;                // cień pod blokiem
+      hgt=clamp(150+cet*300+Math.min(e,3)*20, 0, 255);
+    }
+    let r=base[0]*k, gg=base[1]*k, b=base[2]*k;
+    if(moss){
+      // próg na szumie: mech układa się w płaty, a nie w konfetti
+      const m=ctr(fbm(u,v,4,sd+7,2),2.2);
+      if(m>0.55){
+        const w=clamp((m-0.55)*5,0,1)*0.85, mv=fbm(u,v,14,sd+3,2);
+        r =lerp(r,  B.moss[0]+mv*B.mossVar[0], w);
+        gg=lerp(gg, B.moss[1]+mv*B.mossVar[1], w);
+        b =lerp(b,  B.moss[2]+mv*B.mossVar[2], w);
+        hgt=clamp(hgt+40*w, 0, 255);
+      }
+    }
+    hmap[y*N+x]=hgt|0;
+    px[y*N+x]=(255<<24)|((clamp(b,0,255)|0)<<16)|((clamp(gg,0,255)|0)<<8)|(clamp(r,0,255)|0);
+  }
+
+  const ao=relief(hmap,N,LIGHT_X,LIGHT_Y);         // A5 — spoiny wyglądają na wgłębione
+  applyRelief(px, ao, N, 0.30);
+  g.putImageData(im,0,0);
+
+  if(moss){                                        // zwisające pnącza
+    const rnd=mulberry32(sd+5);
+    for(let i=0;i<14;i++){
+      const x=rnd()*N; g.strokeStyle=B.vine; g.lineWidth=S;
+      g.beginPath(); g.moveTo(x,0);
+      g.quadraticCurveTo(x+(rnd()*8-4)*S, 20*S, x+(rnd()*10-5)*S, (18+rnd()*30)*S);
+      g.stroke();
     }
   }
-  for(let i=0;i<200;i++){ g.fillStyle=`rgba(0,0,0,${r()*.25})`; g.fillRect(r()*64,r()*64,1,1); }
-  if(moss){
-    for(let i=0;i<90;i++){
-      const x=r()*64,y=r()*64,rr=1+r()*5;
-      g.fillStyle=`rgba(${B.moss[0]+r()*B.mossVar[0]|0},${B.moss[1]+r()*B.mossVar[1]|0},${B.moss[2]+r()*B.mossVar[2]|0},${.25+r()*.5})`;
-      g.beginPath(); g.ellipse(x,y,rr,rr*.7,0,0,7); g.fill();
-    }
-    for(let i=0;i<14;i++){                // zwisające pnącza
-      const x=r()*64; g.strokeStyle=B.vine; g.lineWidth=1;
-      g.beginPath(); g.moveTo(x,0); g.quadraticCurveTo(x+(r()*8-4),20,x+(r()*10-5),18+r()*30); g.stroke();
-    }
+  const tex=grab(c); tex.h8=hmap; return tex;
+}
+
+// A4 — drugi zestaw kolorów runa; `alt` wybiera podłoże mieszane maską
+function groundSet(B, alt){
+  return (alt && B.ground2) ? B.ground2
+    : { grass:B.grass, a:B.grassA, aVar:B.grassAVar, b:B.grassB, bVar:B.grassBVar };
+}
+function texGrass(B, variant, alt){
+  const N=TEXN, S=N/64, sd=99+(variant||0)*911+(alt?577:0);
+  const G=groundSet(B,alt);
+  const c=makeCanvas(N,N), g=c.getContext('2d');
+  const im=g.createImageData(N,N), px=new Uint32Array(im.data.buffer);
+  const hmap=new Uint8Array(N*N);
+
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const u=x/N, v=y/N;
+    const kep = ctr(fbm(u,v,5,sd,2),2.0);          // kępy — rozdzielają dwa kolory runa
+    const zdz = fbm(u,v,24,sd+7,1);                // ziarno pojedynczych źdźbeł
+    const w   = clamp((kep-0.5)*3.2+0.5, 0, 1);
+    const r =lerp(G.b[0]+zdz*G.bVar[0], G.a[0]+zdz*G.aVar[0], w);
+    const gg=lerp(G.b[1]+zdz*G.bVar[1], G.a[1]+zdz*G.aVar[1], w);
+    const b =lerp(G.b[2]+zdz*G.bVar[2], G.a[2]+zdz*G.aVar[2], w);
+    hmap[y*N+x]=(zdz*0.65+kep*0.35)*255|0;
+    px[y*N+x]=(255<<24)|((clamp(b,0,255)|0)<<16)|((clamp(gg,0,255)|0)<<8)|(clamp(r,0,255)|0);
   }
+  const ao=relief(hmap,N,LIGHT_X,LIGHT_Y);
+  applyRelief(px, ao, N, 0.22);                    // na podłodze relief musi być delikatniejszy
+  g.putImageData(im,0,0);
+
+  // ściółka i iskierki zostają na mulberry32 — są rzadkie i mają być nieregularne
+  const r2=mulberry32(sd);
+  for(let i=0;i<40;i++){
+    const x=r2()*N, y=r2()*N;
+    g.fillStyle=`rgba(${B.litter[0]+r2()*30|0},${B.litter[1]+r2()*20|0},${B.litter[2]+r2()*15|0},.7)`;
+    g.fillRect(x,y,(2+r2()*3)*S,S);
+  }
+  for(let i=0;i<10;i++){ g.fillStyle=B.sparkle; g.fillRect(r2()*N, r2()*N, S, S); }
+  const tex=grab(c); tex.h8=hmap; return tex;
+}
+
+/* ---------- A6: sklepienie koron ----------
+   Dziury o zerowej alfie; drawSky biegnie pierwsze, więc przez prześwity
+   po prostu zostaje niebo — żadnego blendowania. */
+function texCanopy(B){
+  const N=TEXN, c=makeCanvas(N,N), g=c.getContext('2d');
+  const im=g.createImageData(N,N), px=new Uint32Array(im.data.buffer);
+  const lf=hexRGB(B.grass), dk=B.barkDark;
+  const gap = B.canopyGap!==undefined ? B.canopyGap : 0.42;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const u=x/N, v=y/N;
+    const gest = ctr(fbm(u,v,4,303,3),2.6);        // gęstość listowia
+    if(gest < gap){ px[y*N+x]=0; continue; }        // prześwit
+    const li = fbm(u,v,16,77,2);                   // ziarno pojedynczych liści
+    const k = 0.35 + li*0.5 + (gest-gap)*0.6;
+    const r=lerp(dk[0],lf[0],k), gg=lerp(dk[1],lf[1],k), b=lerp(dk[2],lf[2],k);
+    px[y*N+x] = (255<<24)|((clamp(b,0,255)|0)<<16)|((clamp(gg,0,255)|0)<<8)|(clamp(r,0,255)|0);
+  }
+  g.putImageData(im,0,0);
   return grab(c);
 }
-function texGrass(B){
-  const c=makeCanvas(64,64), g=c.getContext('2d'), r=mulberry32(99);
-  g.fillStyle=B.grass; g.fillRect(0,0,64,64);
-  for(let i=0;i<900;i++){
-    const x=r()*64,y=r()*64;
-    g.fillStyle = r()<.55
-      ? `rgba(${B.grassA[0]+r()*B.grassAVar[0]|0},${B.grassA[1]+r()*B.grassAVar[1]|0},${B.grassA[2]+r()*B.grassAVar[2]|0},.9)`
-      : `rgba(${B.grassB[0]+r()*B.grassBVar[0]|0},${B.grassB[1]+r()*B.grassBVar[1]|0},${B.grassB[2]+r()*B.grassBVar[2]|0},.9)`;
-    g.fillRect(x,y,1,1+ (r()<.3?1:0));
-  }
-  for(let i=0;i<40;i++){                  // gałązki i liście
-    const x=r()*64,y=r()*64;
-    g.fillStyle=`rgba(${B.litter[0]+r()*30|0},${B.litter[1]+r()*20|0},${B.litter[2]+r()*15|0},.7)`;
-    g.fillRect(x,y,2+r()*3,1);
-  }
-  for(let i=0;i<10;i++){
-    const x=r()*64,y=r()*64;
-    g.fillStyle=B.sparkle; g.fillRect(x,y,1,1);
-  }
-  return grab(c);
+
+let TEX = null, GRASS = null, GRASS2 = null, CANOPY = null;
+
+/* A4 — maska mieszania podłoża. fBm na piksel podłogi byłby za drogi,
+   więc liczymy ją raz na poziom. */
+let FLOORMASK = null;
+const FM_N = 64;
+function buildFloorMask(seed){
+  FLOORMASK = new Uint8Array(FM_N*FM_N);
+  for(let y=0;y<FM_N;y++) for(let x=0;x<FM_N;x++)
+    FLOORMASK[y*FM_N+x] = fbm(x/FM_N, y/FM_N, 3, seed, 2)*255|0;
 }
-let TEX = null, GRASS = null;
 
 /* ---------- niebo ---------- */
 const SKY_W=1024, SKY_H=405, SKY_HZ=270;   // horyzont tekstury w wierszu 270
@@ -579,7 +796,7 @@ function makeSprite(w,h,draw,tint){
     g.fillStyle=tint; g.fillRect(0,0,w,h);
     g.globalCompositeOperation='source-over';
   }
-  return shadeLevels(grab(c), SPR_LV);
+  return buildTex(grab(c), SPR_LV);      // A3 — piramida zamiast jednego poziomu
 }
 function jag(g,cx,cy,rr,n,rand,col){
   g.fillStyle=col; g.beginPath();
@@ -856,9 +1073,14 @@ function rebuildUIArt(B){
 // Kolor mgły jest wpalony w poziomy przyciemnienia, więc zmiana biomu
 // wymaga wygenerowania całej grafiki od nowa.
 function rebuildArt(B){
-  TEX   = [ null, shadeLevels(texStone(false,B),32), shadeLevels(texBark(B),32),
-            shadeLevels(texStone(true,B),32) ];
-  GRASS = shadeLevels(texGrass(B),32);
+  // A4 — każdy materiał w trzech wariantach, wybieranych haszem komórki mapy
+  TEX = [ null,
+    [0,1,2].map(i => buildTex(texStone(false,B,i),32)),
+    [0,1,2].map(i => buildTex(texBark(B,i),32)),
+    [0,1,2].map(i => buildTex(texStone(true,B,i),32)) ];
+  GRASS  = buildTex(texGrass(B,0,false),32);
+  GRASS2 = buildTex(texGrass(B,0,true),32);    // A4 — drugie podłoże pod maskę
+  CANOPY = buildTex(texCanopy(B),32);          // A6 — sklepienie koron
   sky   = makeSky(B);
   buildSprites(B);
   rebuildUIArt(B);        // pnącza w UI też są w kolorach biomu
@@ -1027,6 +1249,7 @@ function enterLevel(n, first){
   MAXFOG = biome.maxfog;
 
   applyMap(n===1 ? mapFromRAW() : buildMap(n*104729 + 40503, n));
+  buildFloorMask(n*7919 + 13);        // A4 — maska mieszania podłoża
   rebuildArt(biome);
 
   // nowy las = czysta plansza; stare drzewa i pociski zostają w poprzednim
@@ -1186,6 +1409,9 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR' && gameOver) newGame();
   if(e.code==='KeyO' && !running) showOptions(started?'pause':'title');
   if(e.code==='Escape' && running) pause();
+  if(e.code==='F3'){ e.preventDefault(); perfHud=!perfHud;
+    if(!perfHud) document.title=BASE_TITLE;
+    message(perfHud?'LICZNIK RENDERU: WŁ':'LICZNIK RENDERU: WYŁ',1.2); }
 });
 addEventListener('keyup',e=>{ keys[e.code]=false; });
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; if(running) pause(); });
@@ -1341,14 +1567,24 @@ function newGame(){
 }
 
 let last=performance.now();
+// P0 — linia bazowa wydajności. F3 przełącza odczyt w tytule okna.
+const BASE_TITLE = document.title;
+let renderMs=0, frameN=0, perfHud=true;
 function frame(now){
   requestAnimationFrame(frame);
   let dt=(now-last)/1000; last=now;
   dt=Math.min(dt,0.05);
   if(running) update(dt);
   else if(gameOver) update(Math.min(dt,0.03)*0.35);   // slow-mo po śmierci
+
+  const t0=performance.now();
   render();
+  renderMs = renderMs*0.92 + (performance.now()-t0)*0.08;
+
   drawMini();
+
+  if(perfHud && ((frameN++)&15)===0)
+    document.title = renderMs.toFixed(2)+' ms / render';
 }
 requestAnimationFrame(frame);
 
@@ -1933,6 +2169,7 @@ function render(){
   const horizon = (H/2 + camShift)|0;
 
   drawSky(ang, horizon);
+  drawCeil(horizon);            // A6 — baldachim z prześwitami
   drawFloor(horizon);
   drawWalls(horizon);
 
@@ -1987,7 +2224,6 @@ function drawFloor(horizon){
   const rdx1=dirX+plX, rdy1=dirY+plY;
   const start = Math.max(0, horizon+1);
   const posZ = 0.5*H;
-  const gw=GRASS.w, gh=GRASS.h;
   for(let y=start;y<H;y++){
     const p = y-horizon;
     const rowDist = posZ/p;
@@ -1997,17 +2233,61 @@ function drawFloor(horizon){
       buf.fill(c, y*W, y*W+W);
       continue;
     }
+    // A3 — o poziomie mipmapy decyduje dystans wiersza, nie wysokość kolumny
+    const mi = rowDist<2.2 ? 0 : rowDist<5.5 ? 1 : 2;
+    const mip = mipOf(GRASS,mi), mipB = mipOf(GRASS2,mi);
+    const gw=mip.w, gh=mip.h;                // zmienne z wierszem, nie z funkcją
+
     const stepX=rowDist*(rdx1-rdx0)/W, stepY=rowDist*(rdy1-rdy0)/W;
     let fx=P.x+rowDist*rdx0, fy=P.y+rowDist*rdy0;
     let lvl = (rowDist/MAXFOG*31)|0;
     lvl -= flashLight*0.6|0;
     lvl = clamp(lvl,0,31);
-    const tex = GRASS.lv[lvl];
+    const texA = mip.lv[lvl], texB = mipB.lv[lvl];
     const row=y*W;
+    // A4 — 4 teksele maski na komórkę mapy, czyli jeden kafel maski na 16 komórek
     for(let x=0;x<W;x++){
       const tx = ((fx*gw)|0) & (gw-1);
       const ty = ((fy*gh)|0) & (gh-1);
-      buf[row+x] = tex[ty*gw+tx];
+      const mx = ((fx*4)|0) & (FM_N-1);
+      const my = ((fy*4)|0) & (FM_N-1);
+      // dithering ±16 rozbija twardą krawędź między teksturami
+      const th = 128 + (((x^y)&1)?16:-16);
+      buf[row+x] = (FLOORMASK[my*FM_N+mx] > th ? texA : texB)[ty*gw+tx];
+      fx+=stepX; fy+=stepY;
+    }
+  }
+}
+
+/* ---------- A6: sklepienie koron ----------
+   Ta sama matematyka co podłoga, tylko odbita względem horyzontu i wyżej
+   zawieszona. Teksele o wartości 0 to prześwity — zostaje w nich niebo. */
+const CEIL_H = 2.6;          // wysokość baldachimu w jednostkach mapy
+let CEIL_CUT = 1.35;         // próg odcięcia (× MAXFOG); zejdź do 0.9, jeśli brakuje klatek
+
+function drawCeil(horizon){
+  if(horizon<=0 || !CANOPY) return;
+  const rdx0=dirX-plX, rdy0=dirY-plY, rdx1=dirX+plX, rdy1=dirY+plY;
+  const posZ = 0.5*H*CEIL_H;          // wyżej niż podłoga -> dalszy horyzont
+  const end = Math.min(H-1, horizon);
+  for(let y=0;y<end;y++){
+    const p = horizon-y;              // odbicie względem podłogi
+    const rowDist = posZ/p;
+    if(rowDist > MAXFOG*CEIL_CUT) continue;   // dalej zostaje samo niebo
+
+    const mip = mipOf(CANOPY, rowDist<3 ? 0 : rowDist<7 ? 1 : 2);
+    const cw=mip.w, ch=mip.h;
+    let lvl = (rowDist/MAXFOG*31)|0;
+    lvl -= flashLight*0.4|0;
+    lvl = clamp(lvl,0,31);
+    const tex = mip.lv[lvl];
+
+    const stepX=rowDist*(rdx1-rdx0)/W, stepY=rowDist*(rdy1-rdy0)/W;
+    let fx=P.x+rowDist*rdx0, fy=P.y+rowDist*rdy0;
+    const row=y*W;
+    for(let x=0;x<W;x++){
+      const c = tex[(((fy*ch)|0)&(ch-1))*cw + (((fx*cw)|0)&(cw-1))];
+      if(c) buf[row+x]=c;             // 0 = prześwit, zostaw niebo
       fx+=stepX; fy+=stepY;
     }
   }
@@ -2040,22 +2320,31 @@ function drawWalls(horizon){
     const drawY0 = Math.max(0,y0), drawY1 = Math.min(H-1,y1);
     if(drawY1<drawY0) continue;
 
-    const tex = TEX[hit];
+    // A4 — hasz wyłącznie z mapX/mapY: wariant jest stały w czasie, więc
+    // wszystkie cztery ściany tej samej komórki wyglądają tak samo
+    const vh = (Math.imul(mapX,73856093) ^ Math.imul(mapY,19349663))>>>0;
+    const tex = TEX[hit][ vh % VARIANTS ];
+
+    // A3 — kolumna o wysokości lineH pokrywa tex.h tekseli:
+    // lineH >= tex.h -> mip 0, dalej połowa, ćwiartka
+    const mip = mipOf(tex, lineH >= tex.h ? 0
+                         : lineH >= (tex.h>>1) ? 1 : 2);
+    const tw=mip.w, th=mip.h;
+
     let wallX = side===0 ? P.y + dist*rdy : P.x + dist*rdx;
     wallX -= Math.floor(wallX);
-    let tx = (wallX*tex.w)|0;
-    if(side===0 && rdx>0) tx=tex.w-tx-1;
-    if(side===1 && rdy<0) tx=tex.w-tx-1;
+    let tx = (wallX*tw)|0;
+    if(side===0 && rdx>0) tx=tw-tx-1;
+    if(side===1 && rdy<0) tx=tw-tx-1;
 
     let lvl = (dist/MAXFOG*31)|0;
     if(side===1) lvl+=4;
     lvl -= flashLight|0;
     lvl = clamp(lvl,0,31);
-    const t = tex.lv[lvl];
+    const t = mip.lv[lvl];
 
-    const stepT = tex.h/lineH;
+    const stepT = th/lineH;
     let texPos = (drawY0 - camShift - H/2 + lineH/2)*stepT;
-    const tw=tex.w, th=tex.h;
     for(let y=drawY0;y<=drawY1;y++){
       const ty = ((texPos|0) & (th-1));
       texPos += stepT;
@@ -2086,8 +2375,11 @@ function drawSprite(s){
   let lvl = (tY/MAXFOG*(SPR_LV-1))|0;
   lvl -= (flashLight*0.5)|0;
   lvl = clamp(lvl,0,SPR_LV-1);
-  const tex = s.tex, t = tex.lv[lvl];
-  const tw=tex.w, th=tex.h;
+  const tex = s.tex;
+  // A3 — to na drzewach różnica jest największa: dalekie korony przestają syczeć
+  const mip = mipOf(tex, sh >= tex.h ? 0 : sh >= (tex.h>>1) ? 1 : 2);
+  const t = mip.lv[lvl];
+  const tw=mip.w, th=mip.h;
   const flash = s.flash>0.02;
 
   for(let x=dx0;x<=dx1;x++){

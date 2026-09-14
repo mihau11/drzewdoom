@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DRZEWODOOM — Las Cię dopadnie</title>
+<title>DRZEWODOOM — Las Cię dopadnie (Pakiet B: światło i cienie)</title>
 <style>
   :root{ --s: 3; }
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -363,6 +363,143 @@ function buildMap(seed, level){
   return mapFromRAW();          // awaryjnie: znana, na pewno grywalna mapa
 }
 
+
+/* ============================================================
+   ŚWIATŁO  (Pakiet B)
+
+   Mgła zostaje tam, gdzie była: jednowymiarowy LUT wpalony w tekstury,
+   jeden odczyt na piksel. Światło dokłada się JAKO MNOŻENIE RGB po wyjściu
+   z LUT-a — i liczy się raz na kolumnę ściany, raz na 8 pikseli podłogi
+   i raz na sprite, nigdy na piksel. To ok. 2 500 wyliczeń na klatkę
+   zamiast 130 000.
+   ============================================================ */
+let LM = null;                 // Float32Array, 3 kanały na komórkę, 1.0 = neutralnie
+const LT = [0,0,0];            // bufor roboczy, żeby nie alokować w pętli
+
+/* ---------- B2: statyczna lightmapa poziomu ---------- */
+function buildLightmap(B, seed){
+  LM = new Float32Array(MW*MH*3);
+  const rnd = mulberry32(seed);
+
+  // 1. otwartość: ile nieba widzi komórka. Ważone jądro 7x7 to tania,
+  //    ale zaskakująco przekonująca aproksymacja sky occlusion.
+  const amb = new Float32Array(MW*MH);
+  for(let y=0;y<MH;y++) for(let x=0;x<MW;x++){
+    if(cell(x,y)!==0) continue;
+    let open=0, tot=0;
+    for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){
+      const w=1/(1+dx*dx+dy*dy);
+      tot+=w; if(cell(x+dx,y+dy)===0) open+=w;
+    }
+    amb[y*MW+x]=open/tot;
+  }
+
+  // 2. ambient nieba — kolor z biomu, siła z otwartości.
+  //    Komórki ścian też dostają wpis (amb=0 -> ambientMin), żeby dwuliniowe
+  //    próbkowanie podłogi przy ścianie nie wpadało w czerń.
+  const A=B.ambient, lo=B.ambientMin;
+  for(let i=0;i<MW*MH;i++){
+    const k = lo + (1-lo)*amb[i];
+    LM[i*3]=A[0]*k; LM[i*3+1]=A[1]*k; LM[i*3+2]=A[2]*k;
+  }
+
+  // 3. źródła statyczne w losowych otwartych komórkach
+  for(let i=0,put=0; i<400 && put<B.lights; i++){
+    const x=1+(rnd()*(MW-2)|0), y=1+(rnd()*(MH-2)|0);
+    if(cell(x,y)!==0) continue;
+    if(amb[y*MW+x] > 0.75) continue;      // światła mają sens w gąszczu, nie na polanie
+    addStaticLight(x+0.5, y+0.5, B.lightCol, B.lightRad);
+    put++;
+  }
+}
+
+function addStaticLight(lx,ly,col,rad){
+  const x0=Math.max(0,(lx-rad)|0), x1=Math.min(MW-1,(lx+rad)|0);
+  const y0=Math.max(0,(ly-rad)|0), y1=Math.min(MH-1,(ly+rad)|0);
+  for(let cy=y0;cy<=y1;cy++) for(let cx=x0;cx<=x1;cx++){
+    const d=Math.hypot(cx+0.5-lx, cy+0.5-ly);
+    if(d>rad) continue;
+    // ściany też rozświetlamy — inaczej kałuża światła urywa się na krawędzi
+    if(cell(cx,cy)===0 && !losClear(lx,ly,cx+0.5,cy+0.5)) continue;
+    const f=(1-d/rad)*(1-d/rad);
+    const i=(cy*MW+cx)*3;
+    LM[i]+=col[0]*f; LM[i+1]+=col[1]*f; LM[i+2]+=col[2]*f;
+  }
+}
+
+/* ---------- B4: światła dynamiczne ---------- */
+const DL=[];                   // lista aktywnych źródeł
+const MAXDL=10;
+function addLight(x,y,col,rad,life){
+  if(DL.length>=MAXDL){
+    // wyrzucamy NAJSŁABSZE, nie najstarsze: inaczej trzy lecące szyszki
+    // potrafią zjeść błysk wystrzału, który jest tu najważniejszy
+    let wi=0, wv=1e9;
+    for(let i=0;i<DL.length;i++){
+      const v=DL[i].rad*DL[i].t;
+      if(v<wv){ wv=v; wi=i; }
+    }
+    DL.splice(wi,1);
+  }
+  DL.push({x,y,c:col,rad,t:life,life});
+}
+function updateLights(dt){
+  for(let i=DL.length-1;i>=0;i--){
+    DL[i].t-=dt;
+    if(DL[i].t<=0) DL.splice(i,1);
+  }
+}
+// Światła nie sprawdzają widoczności — test losClear na źródło i kolumnę
+// wywróciłby koszt, a w gęstym lesie o krótkich dystansach tego nie widać.
+function addDynamic(px,py,out){
+  for(let i=0;i<DL.length;i++){
+    const L=DL[i];
+    const dx=px-L.x, dy=py-L.y, d2=dx*dx+dy*dy;
+    if(d2 > L.rad*L.rad) continue;
+    const f=1-Math.sqrt(d2)/L.rad;
+    const k=f*f*(L.t/L.life);            // kwadratowy spadek + wygasanie w czasie
+    out[0]+=L.c[0]*k; out[1]+=L.c[1]*k; out[2]+=L.c[2]*k;
+  }
+}
+
+/* ---------- odczyt: to woła B1 ---------- */
+function lightAt(px,py,out){
+  if(!LM){ out[0]=out[1]=out[2]=1; return; }
+  const cx=px|0, cy=py|0;
+  if(cx<0||cy<0||cx>=MW||cy>=MH){ out[0]=out[1]=out[2]=1; return; }
+  const i=(cy*MW+cx)*3;
+  out[0]=LM[i]; out[1]=LM[i+1]; out[2]=LM[i+2];
+  addDynamic(px,py,out);
+}
+
+/* ---------- B3: dwuliniowe próbkowanie dla podłogi ---------- */
+function lightBilinear(px,py,out){
+  if(!LM){ out[0]=out[1]=out[2]=1; return; }
+  const x=px-0.5, y=py-0.5;
+  const x0=Math.floor(x), y0=Math.floor(y);
+  const tx=x-x0, ty=y-y0;
+  // indeksy liczone ręcznie: domknięcie-pomocnik alokowane 12 000 razy na klatkę
+  // kosztowało więcej niż samo próbkowanie
+  const ax0 = x0<0?0:x0>=MW?MW-1:x0, ax1 = x0+1<0?0:x0+1>=MW?MW-1:x0+1;
+  const ay0 = y0<0?0:y0>=MH?MH-1:y0, ay1 = y0+1<0?0:y0+1>=MH?MH-1:y0+1;
+  const r0=ay0*MW, r1=ay1*MW;
+  const i00=(r0+ax0)*3, i10=(r0+ax1)*3, i01=(r1+ax0)*3, i11=(r1+ax1)*3;
+  for(let k=0;k<3;k++)
+    out[k]=lerp(lerp(LM[i00+k],LM[i10+k],tx), lerp(LM[i01+k],LM[i11+k],tx), ty);
+  addDynamic(px,py,out);
+}
+
+/* ---------- B7: kierunkowe światło księżyca ---------- */
+// 0:+X  1:-X  2:+Y  3:-Y — normalna ściany wskazuje NA gracza
+const FACE_N=[[1,0],[-1,0],[0,1],[0,-1]];
+const faceK=new Float32Array([1,1,1,1]);
+function updateFaceLight(B){
+  for(let i=0;i<4;i++){
+    const d = FACE_N[i][0]*B.moonDir[0] + FACE_N[i][1]*B.moonDir[1];
+    faceK[i] = 1 + d*B.moonStr;
+  }
+}
+
 /* ============================================================
    TEKSTURY (proceduralne, z 32 poziomami przyciemnienia)
    ============================================================ */
@@ -404,6 +541,8 @@ const BIOMES = [
     grass:'#1d2c17', grassA:[28,52,22], grassAVar:[22,40,18],
     grassB:[12,24,10], grassBVar:[14,20,10], litter:[70,55,30], sparkle:'rgba(190,190,120,.35)',
     treeTint:null, mini:['#4a4f56','#6a4b30','#3d5c3a'],
+    ambient:[0.82,0.90,1.08], ambientMin:0.42, lights:0,  lightCol:[0,0,0],          lightRad:0,
+    moonDir:[-0.71,-0.71], moonStr:0.26,          // wysoki księżyc, wyraźny
     sky:{ stops:['#04060d','#0b1522','#16242a','#0a1210'], stars:700, moon:true,
           cloud:'40,55,70', treeline:['#0a140e','#08110c','#050c08'] } },
 
@@ -414,6 +553,8 @@ const BIOMES = [
     grass:'#1a2418', grassA:[34,54,28], grassAVar:[24,36,16],
     grassB:[26,30,16], grassBVar:[18,18,10], litter:[60,58,32], sparkle:'rgba(150,200,150,.30)',
     treeTint:'rgba(24,60,42,.22)', mini:['#3c4a41','#5a5230','#3f6444'],
+    ambient:[0.78,0.95,0.84], ambientMin:0.34, lights:7,  lightCol:[0.15,0.55,0.30], lightRad:3.5,
+    moonDir:[ 0.38,-0.92], moonStr:0.10,          // mgła rozprasza, prawie płasko
     sky:{ stops:['#070d0b','#0d1a14','#16261c','#0b1410'], stars:120, moon:false,
           cloud:'50,80,62', treeline:['#0b1610','#08120c','#050d08'] } },
 
@@ -424,6 +565,8 @@ const BIOMES = [
     grass:'#241d19', grassA:[52,42,34], grassAVar:[30,24,18],
     grassB:[26,20,17], grassBVar:[18,14,10], litter:[90,50,28], sparkle:'rgba(255,140,60,.45)',
     treeTint:'rgba(40,20,12,.42)', mini:['#544a44','#4a3a30','#6a4a30'],
+    ambient:[1.02,0.84,0.72], ambientMin:0.30, lights:12, lightCol:[0.95,0.42,0.12], lightRad:4.5,
+    moonDir:[ 0.00, 1.00], moonStr:0.20,          // łuna pożaru od jednej strony
     sky:{ stops:['#120806','#24100a','#3a1a0e','#180b07'], stars:90, moon:false,
           cloud:'90,50,36', treeline:['#1a0e09','#140a07','#0d0705'] } },
 
@@ -434,6 +577,8 @@ const BIOMES = [
     grass:'#8e9aa8', grassA:[170,182,196], grassAVar:[40,40,40],
     grassB:[120,134,150], grassBVar:[30,30,34], litter:[90,96,104], sparkle:'rgba(235,245,255,.7)',
     treeTint:'rgba(150,178,205,.26)', mini:['#5e6a78','#5a5450','#7a8894'],
+    ambient:[0.90,0.98,1.15], ambientMin:0.58, lights:0,  lightCol:[0,0,0],          lightRad:0,
+    moonDir:[-0.92,-0.38], moonStr:0.34,          // najostrzejsze, śnieg odbija
     sky:{ stops:['#070b14','#101a2a','#1e2c40','#141c26'], stars:900, moon:true,
           cloud:'70,90,120', treeline:['#141c26','#101720','#0b1017'] } },
 
@@ -444,6 +589,8 @@ const BIOMES = [
     grass:'#221630', grassA:[58,34,70], grassAVar:[30,20,36],
     grassB:[30,18,38], grassBVar:[18,12,22], litter:[110,60,120], sparkle:'rgba(220,140,255,.55)',
     treeTint:'rgba(92,40,112,.30)', mini:['#4e3c5a','#523046','#6a4070'],
+    ambient:[0.62,0.55,0.80], ambientMin:0.18, lights:20, lightCol:[0.70,0.25,0.95], lightRad:3.0,
+    moonDir:[ 0.00,-1.00], moonStr:0.06,          // brak nieba, rządzą źródła własne
     sky:{ stops:['#0a0512','#170a24','#261038','#120a1c'], stars:1100, moon:false,
           cloud:'70,40,90', treeline:['#140a1c','#0f0715','#0a050e'] } },
 ];
@@ -861,6 +1008,7 @@ function rebuildArt(B){
   GRASS = shadeLevels(texGrass(B),32);
   sky   = makeSky(B);
   buildSprites(B);
+  updateFaceLight(B);     // B7 — kierunek i siła księżyca zależą od biomu
   rebuildUIArt(B);        // pnącza w UI też są w kolorach biomu
   vign  = null;
 }
@@ -971,7 +1119,7 @@ const WEAPONS = [
 ];
 
 let P, enemies, decals, pickups, shots, parts, wave, waveQueue, waveTimer,
-    kills, score, running, gameOver, started, msgTimer, camShake, flashLight, hurtFlash, bobT;
+    kills, score, running, gameOver, started, msgTimer, camShake, hurtFlash, bobT;
 // seria ścięć (mnożnik punktów), unoszące się liczby obrażeń, hitmarker,
 // faza kroku i wygładzone „zagrożenie" dla ambientu
 let floaters=[], streak=0, streakT=0, hitT=0, stepPhase=0, threat=0;
@@ -1027,6 +1175,8 @@ function enterLevel(n, first){
   MAXFOG = biome.maxfog;
 
   applyMap(n===1 ? mapFromRAW() : buildMap(n*104729 + 40503, n));
+  buildLightmap(biome, n*2654435761 + 17);   // B2 — liczona RAZ na poziom
+  DL.length = 0;                             // stare błyski nie przechodzą do nowego lasu
   rebuildArt(biome);
 
   // nowy las = czysta plansza; stare drzewa i pociski zostają w poprzednim
@@ -1060,7 +1210,7 @@ function reset(){
   enemies=[]; decals=[]; pickups=[]; shots=[]; parts=[]; floaters=[];
   wave=0; waveQueue=[]; waveTimer=1.6; kills=0; score=0;
   streak=0; streakT=0; hitT=0; stepPhase=0; threat=0;
-  gameOver=false; camShake=0; flashLight=0; hurtFlash=0; bobT=0;
+  gameOver=false; camShake=0; hurtFlash=0; bobT=0;
   enterLevel(1, true);
   message('OBUDZIŁEŚ LAS. UCIEKAJ ALBO RĄB.', 2.6);
 }
@@ -1341,14 +1491,22 @@ function newGame(){
 }
 
 let last=performance.now();
+// P0 — licznik czasu renderu. Renderer jest programowy, więc każda zmiana
+// w wewnętrznej pętli jest odczuwalna; bez pomiaru nie wiadomo, co kosztowało.
+let renderMs=0, frameN=0;
 function frame(now){
   requestAnimationFrame(frame);
   let dt=(now-last)/1000; last=now;
   dt=Math.min(dt,0.05);
   if(running) update(dt);
   else if(gameOver) update(Math.min(dt,0.03)*0.35);   // slow-mo po śmierci
+  const t0=performance.now();
   render();
+  renderMs = renderMs*0.92 + (performance.now()-t0)*0.08;
   drawMini();
+  // rysowane poza buforem — na pasku tytułu, żeby nie wchodzić w klatkę
+  if(((frameN++)&15)===0)
+    document.title = renderMs.toFixed(2)+' ms / render — DRZEWODOOM';
 }
 requestAnimationFrame(frame);
 
@@ -1427,7 +1585,10 @@ function update(dt){
     if(keys.KeyR && P.w===1 && P.reloadT<=0 && P.mag<WEAPONS[1].mag && P.shells>0) startReload();
   }
 
-  flashLight = Math.max(0, flashLight - dt*38);
+  updateLights(dt);                                   // B4 — wygaszanie źródeł
+  // lecące szyszki świecą przez cały lot: odświeżamy pozycję co klatkę,
+  // a życie na dt*1.05 sprawia, że światło gaśnie samo, gdy pocisk zniknie
+  for(const sh of shots) addLight(sh.x, sh.y, [0.55,0.30,0.08], 2.6, dt*1.05);
   hitT       = Math.max(0, hitT - dt);
   if(streakT>0){ streakT-=dt; if(streakT<=0) streak=0; }   // seria wygasa
   hurtFlash  = Math.max(0, hurtFlash - dt*1.9);
@@ -1724,7 +1885,8 @@ function fire(){
 
   if(w.flame){
     SFX.flame();
-    flashLight=Math.max(flashLight,3.5);
+    addLight(P.x,P.y,[1.20,0.55,0.15],3.5,0.07);   // B4 — miotacz
+
     camShake=Math.max(camShake,0.45);
     // Stożek rozszerza się z odległością: z bliska wąski i pewny, dalej szeroki
     // ale rozrzedzony. Trafienie samo w sobie boli mało — liczy się podpalenie.
@@ -1763,8 +1925,9 @@ function fire(){
   }
 
   // broń palna
-  if(P.w===1){ SFX.shotgun(); flashLight=Math.max(flashLight,9); camShake=Math.max(camShake,3.2); P.pitch=clamp(P.pitch+7,-70,70); }
-  else       { SFX.chain();   flashLight=Math.max(flashLight,5); camShake=Math.max(camShake,1.1); P.pitch=clamp(P.pitch+1.6,-70,70); }
+  // B4 — błysk wystrzału to światło STOJĄCE W MIEJSCU GRACZA, nie rozjaśnienie ekranu
+  if(P.w===1){ SFX.shotgun(); addLight(P.x,P.y,[1.60,1.15,0.50],6.5,0.085); camShake=Math.max(camShake,3.2); P.pitch=clamp(P.pitch+7,-70,70); }
+  else       { SFX.chain();   addLight(P.x,P.y,[1.10,0.80,0.35],4.5,0.055); camShake=Math.max(camShake,1.1); P.pitch=clamp(P.pitch+1.6,-70,70); }
 
   for(let i=0;i<w.pellets;i++){
     const a = P.a + (Math.random()*2-1)*w.spread;
@@ -1853,7 +2016,7 @@ function hitscan(a, range, dmg){
 function explode(e,def){
   SFX.boom();
   camShake   = Math.min(9, camShake+5.5);
-  flashLight = Math.max(flashLight, 10);
+  addLight(e.x, e.y, [1.90,0.85,0.28], 7.5, 0.38);   // B4 — wybuch rozpala otoczenie
   burst(e.x,e.y,0.5,44,[255,150,50]);
   burst(e.x,e.y,0.2,18,[120,70,30]);
   const pd = Math.hypot(P.x-e.x, P.y-e.y);
@@ -1944,16 +2107,31 @@ function render(){
     let sy=1, sx=1;
     if(e.dying>0){ const t=1-e.dying/0.65; sy=1-t*0.92; sx=1+t*0.45; }
     if(e.rooted){ sy*=0.92; sx*=1.12; }          // wrośnięty: przysiada i rozpiera się
-    list.push({ x:e.x, y:e.y, tex:fr, hUnits:d.hUnits*sy, wUnits:d.wUnits*sx, flash:e.flash });
+    // B8 — jedno wyliczenie światła na obiekt; bez tego drzewa świecą własnym
+    // światłem i wyglądają jak naklejki na oświetlonym tle
+    lightAt(e.x, e.y, LT);
+    list.push({ x:e.x, y:e.y, tex:fr, hUnits:d.hUnits*sy, wUnits:d.wUnits*sx, flash:e.flash,
+                lr:LT[0], lg:LT[1], lb:LT[2] });
   }
-  for(const d of decals) list.push({ x:d.x, y:d.y, tex:STUMP, hUnits:0.30, wUnits:0.45, flash:0 });
+  for(const d of decals){
+    lightAt(d.x, d.y, LT);
+    list.push({ x:d.x, y:d.y, tex:STUMP, hUnits:0.30, wUnits:0.45, flash:0,
+                lr:LT[0], lg:LT[1], lb:LT[2] });
+  }
   for(const pk of pickups){
     // ostatnie 5 s znajdźka miga — widać, że zaraz zniknie
     if(pk.life<5 && (pk.life*6|0)%2) continue;
+    // znajdźki muszą zostać czytelne także w GRZYBNI, więc ich mnożnik
+    // jest ściągnięty ku szarości (B5): światło je barwi, ale nie przebarwia
+    lightAt(pk.x, pk.y, LT);
     list.push({ x:pk.x, y:pk.y, tex:PICKUP[pk.kind],
-      hUnits:0.30, wUnits:0.30, flash:0, zoff:0.10+Math.sin(pk.t*3)*0.05 });
+      hUnits:0.30, wUnits:0.30, flash:0, zoff:0.10+Math.sin(pk.t*3)*0.05,
+      lr:LT[0], lg:LT[1], lb:LT[2], dim:0.35 });
   }
-  for(const s of shots) list.push({ x:s.x, y:s.y, tex:CONE, hUnits:0.22, wUnits:0.18, flash:0, zoff:s.z-0.11 });
+  // szyszki niosą WŁASNE światło (B4), więc lightAt na ich pozycji zwróciłby
+  // wartość zdominowaną przez nie same i pocisk zrobiłby się biały
+  for(const s of shots) list.push({ x:s.x, y:s.y, tex:CONE, hUnits:0.22, wUnits:0.18, flash:0,
+                                    zoff:s.z-0.11, lr:1, lg:1, lb:1 });
 
   for(const s of list) s.d=(s.x-P.x)*(s.x-P.x)+(s.y-P.y)*(s.y-P.y);
   list.sort((a,b)=>b.d-a.d);
@@ -1982,6 +2160,7 @@ function drawSky(ang, horizon){
   }
 }
 
+const SEG = 8;        // co ile pikseli próbkować światło podłogi (B3)
 function drawFloor(horizon){
   const rdx0=dirX-plX, rdy0=dirY-plY;
   const rdx1=dirX+plX, rdy1=dirY+plY;
@@ -2000,14 +2179,42 @@ function drawFloor(horizon){
     const stepX=rowDist*(rdx1-rdx0)/W, stepY=rowDist*(rdy1-rdy0)/W;
     let fx=P.x+rowDist*rdx0, fy=P.y+rowDist*rdy0;
     let lvl = (rowDist/MAXFOG*31)|0;
-    lvl -= flashLight*0.6|0;
     lvl = clamp(lvl,0,31);
     const tex = GRASS.lv[lvl];
     const row=y*W;
+
+    // B1/B3 — światło zmienia się wzdłuż wiersza, ale wiersze podłogi są spójne:
+    // próbkujemy dwuliniowo co SEG pikseli i interpolujemy przyrostowo.
+    // fogK: mgła musi tłumić światło, inaczej rozbłysk rozjaśnia samą mgłę.
+    const fogK = 1 - lvl/31;
+    lightBilinear(fx,fy,LT);
+    let cr=256+(LT[0]*256-256)*fogK, cg=256+(LT[1]*256-256)*fogK,
+        cb=256+(LT[2]*256-256)*fogK, dr=0, dg=0, db=0;
+
     for(let x=0;x<W;x++){
+      if((x&(SEG-1))===0){
+        // próbka na końcu następnego odcinka, przyrosty rozłożone na SEG kroków
+        lightBilinear(fx+stepX*SEG, fy+stepY*SEG, LT);
+        dr=((256+(LT[0]*256-256)*fogK)-cr)/SEG;
+        dg=((256+(LT[1]*256-256)*fogK)-cg)/SEG;
+        db=((256+(LT[2]*256-256)*fogK)-cb)/SEG;
+      }
+      let lr = cr|0; if(lr<0) lr=0;
+      let lg = cg|0; if(lg<0) lg=0;
+      let lb = cb|0; if(lb<0) lb=0;
+
       const tx = ((fx*gw)|0) & (gw-1);
       const ty = ((fy*gh)|0) & (gh-1);
-      buf[row+x] = tex[ty*gw+tx];
+      const c  = tex[ty*gw+tx];
+      const r  = ((c     &255)*lr)>>8;
+      const g  = ((c>>>8 &255)*lg)>>8;
+      const b  = ((c>>>16&255)*lb)>>8;
+      buf[row+x] = 0xFF000000
+        | ((b>255?255:b)<<16)
+        | ((g>255?255:g)<<8)
+        |  (r>255?255:r);
+
+      cr+=dr; cg+=dg; cb+=db;
       fx+=stepX; fy+=stepY;
     }
   }
@@ -2048,10 +2255,24 @@ function drawWalls(horizon){
     if(side===1 && rdy<0) tx=tex.w-tx-1;
 
     let lvl = (dist/MAXFOG*31)|0;
-    if(side===1) lvl+=4;
-    lvl -= flashLight|0;
     lvl = clamp(lvl,0,31);
     const t = tex.lv[lvl];
+
+    // B1 — mnożnik światła liczony RAZ dla całej kolumny.
+    // Próbkujemy komórkę PRZED ścianą (tę, w której ray był krok wcześniej):
+    // komórki ścian mają w lightmapie tylko ambientMin, więc wszystkie ściany
+    // wyszłyby jednakowo ciemne i cała robota z polanami poszłaby w gwizdek.
+    const lcx = (side===0 ? mapX-stepX : mapX) + 0.5;
+    const lcy = (side===1 ? mapY-stepY : mapY) + 0.5;
+    lightAt(lcx, lcy, LT);
+    const fogK = 1 - lvl/31;          // mgła tłumi światło — patrz komentarz w drawFloor
+    // B7 — kierunkowe światło księżyca zastępuje `if(side===1) lvl+=4`:
+    // cztery ściany słupa dostają cztery różne jasności zamiast dwóch
+    const face = side===0 ? (rdx>0 ? 1 : 0) : (rdy>0 ? 3 : 2);
+    const fk = faceK[face];
+    let lr = (256+(LT[0]*256-256)*fogK)*fk|0; if(lr<0) lr=0;
+    let lg = (256+(LT[1]*256-256)*fogK)*fk|0; if(lg<0) lg=0;
+    let lb = (256+(LT[2]*256-256)*fogK)*fk|0; if(lb<0) lb=0;
 
     const stepT = tex.h/lineH;
     let texPos = (drawY0 - camShift - H/2 + lineH/2)*stepT;
@@ -2059,7 +2280,42 @@ function drawWalls(horizon){
     for(let y=drawY0;y<=drawY1;y++){
       const ty = ((texPos|0) & (th-1));
       texPos += stepT;
-      buf[y*W+x] = t[ty*tw+tx];
+      const c = t[ty*tw+tx];
+      const r = ((c     &255)*lr)>>8;
+      const g = ((c>>>8 &255)*lg)>>8;
+      const b = ((c>>>16&255)*lb)>>8;
+      buf[y*W+x] = 0xFF000000
+        | ((b>255?255:b)<<16)
+        | ((g>255?255:g)<<8)
+        |  (r>255?255:r);
+    }
+  }
+}
+
+// B10 — ciemna elipsa u podstawy sprite'a. Bez niej wszystko w raycasterze
+// sprawia wrażenie lewitującego; z nią unosząca się znajdźka LEWITUJE naprawdę,
+// bo jej cień zostaje na ziemi.
+function contactShadow(scr, floorY, unit, wUnits, tY, str){
+  const rw = (unit*wUnits*0.55)|0;
+  const rh = Math.max(1, (rw*0.34)|0);
+  if(rw<1) return;
+  const fy=floorY|0;
+  const y0=Math.max(0,fy-rh), y1=Math.min(H-1,fy+rh);
+  const x0=Math.max(0,scr-rw), x1=Math.min(W-1,scr+rw);
+  for(let y=y0;y<=y1;y++){
+    const dy=(y-fy)/rh, dy2=dy*dy;
+    const row=y*W;
+    for(let x=x0;x<=x1;x++){
+      if(zbuf[x] <= tY) continue;          // ściana bliżej — cień nie wychodzi za nią
+      const dx=(x-scr)/rw;
+      const d=dx*dx+dy2;
+      if(d>=1) continue;
+      const k = 256 - (str*(1-d)*256)|0;   // mnożnik < 256 = przyciemnienie
+      const c = buf[row+x];
+      buf[row+x] = 0xFF000000
+        | ((((c>>>16&255)*k)>>8)<<16)
+        | ((((c>>>8 &255)*k)>>8)<<8)
+        |  (((c      &255)*k)>>8);
     }
   }
 }
@@ -2083,12 +2339,23 @@ function drawSprite(s){
   const dy0=Math.max(0,y0), dy1=Math.min(H-1,y1-1);
   if(dy1<dy0) return;
 
+  // B10 — cień idzie na wysokość GRUNTU, więc BEZ odejmowania zoff.
+  // Siła zwiazana z rozmiarem: bliskie drzewo nie ma przykrywać pół ekranu.
+  const groundY = H/2 + camShift + unit*0.5;
+  contactShadow(scr, groundY, unit, s.wUnits, tY, 0.5*clamp(3/tY,0.3,1));
+
   let lvl = (tY/MAXFOG*(SPR_LV-1))|0;
-  lvl -= (flashLight*0.5)|0;
   lvl = clamp(lvl,0,SPR_LV-1);
   const tex = s.tex, t = tex.lv[lvl];
   const tw=tex.w, th=tex.h;
   const flash = s.flash>0.02;
+
+  // B8 — mnożnik stały dla całego sprite'a, wyliczony przy budowie listy
+  const fogK = 1 - lvl/(SPR_LV-1);
+  const dim  = s.dim || 1;
+  let mr = 256+((s.lr*256-256)*fogK)*dim|0; if(mr<0) mr=0;
+  let mg = 256+((s.lg*256-256)*fogK)*dim|0; if(mg<0) mg=0;
+  let mb = 256+((s.lb*256-256)*fogK)*dim|0; if(mb<0) mb=0;
 
   for(let x=dx0;x<=dx1;x++){
     if(zbuf[x]<=tY) continue;
@@ -2099,8 +2366,19 @@ function drawSprite(s){
       if(texY<0||texY>=th) continue;
       const c = t[texY*tw+texX];
       if(c===0) continue;
-      // trafienie: rozjaśnienie z zachowaniem kształtu (średnia z bielą)
-      buf[y*W+x] = flash ? (0xFF000000 | (((c>>>1)&0x7F7F7F) + 0x808080)) : c;
+      if(flash){
+        // Rozbłysk trafienia zostaje POZA mnożeniem: to sygnał gry, nie zjawisko
+        // optyczne — gracz musi widzieć, że trafił, także w ciemnościach GRZYBNI.
+        buf[y*W+x] = 0xFF000000 | (((c>>>1)&0x7F7F7F) + 0x808080);
+      } else {
+        const r=((c     &255)*mr)>>8;
+        const g=((c>>>8 &255)*mg)>>8;
+        const b=((c>>>16&255)*mb)>>8;
+        buf[y*W+x] = 0xFF000000
+          | ((b>255?255:b)<<16)
+          | ((g>255?255:g)<<8)
+          |  (r>255?255:r);
+      }
     }
   }
 }
