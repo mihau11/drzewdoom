@@ -4,7 +4,7 @@ Raycasterowy klon Dooma, w którym gonią Cię drzewa. Czysty JavaScript, zero z
 
 ## Uruchamianie
 
-Skryptów nie da się otworzyć podwójnym kliknięciem z dysku w każdej przeglądarce — najpewniej przez lokalny serwer:
+Wystarczy otworzyć `index.html` w przeglądarce. Docelowo (moduły ES, multiplayer) potrzebny będzie lokalny serwer:
 
 ```
 python -m http.server 8765
