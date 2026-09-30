@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DRZEWODOOM — mieszanka</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="cv" width="480" height="270"></canvas>
+  <div id="ui">
+    <div id="frame"></div>
+    <div id="topbar">
+      <div><b id="biome">NOCNY BÓR</b> &nbsp;·&nbsp; FALA <b id="wave">1</b> &nbsp;·&nbsp; ZOSTAŁO <b id="left">0</b></div>
+      <div>ŚCIĘTE <b id="kills">0</b> &nbsp;·&nbsp; PKT <b id="score">0</b> &nbsp;·&nbsp; REKORD <b id="best">0</b>
+        &nbsp;·&nbsp; WIÓRY <b id="chips" style="color:#e0c14a">0</b></div>
+    </div>
+    <div id="bossbar" class="hide">
+      <div id="bossname">PRADRZEW</div>
+      <div class="bar bbar"><i id="bosshp"></i></div>
+    </div>
+    <div id="msg"></div>
+    <div id="bottom">
+      <div id="sidehud">
+        <div class="blk" id="wepbox">
+          <div class="lbl" id="wepname">SIEKIERA</div>
+          <div class="big" id="ammo">∞</div>
+          <div id="weplist"><span class="on">1</span> <span>2</span> <span>3</span> <span>4</span></div>
+        </div>
+        <div class="blk">
+          <div class="lbl">ZDROWIE</div>
+          <div class="big" id="hpnum">100</div>
+          <div class="bar"><i id="hpbar"></i></div>
+          <div class="lbl" style="margin-top:calc(3px*var(--s))">KONDYCJA</div>
+          <div class="bar sbar"><i id="stambar"></i></div>
+        </div>
+      </div>
+      <div id="minibox"><canvas id="mini" width="72" height="72"></canvas></div>
+    </div>
+  </div>
+  <div id="overlay"></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/map.js"></script>
+<script src="js/lighting.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/state.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/waves.js"></script>
+<script src="js/input.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/update.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/render.js"></script>
+<script src="js/overlay.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
