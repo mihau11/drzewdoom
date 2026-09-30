@@ -88,6 +88,9 @@ function burst(x,y,z,n,col){
 /* ---------- strzelanie ---------- */
 function startReload(){
   P.reloadT = WEAPONS[W_SHOTGUN].reload;
+  // stan na początku przeładowania — animacja wie, ile łusek wyrzucić i ile nabojów włożyć
+  P.reloadFrom = P.mag;
+  P.reloadTake = Math.min(WEAPONS[W_SHOTGUN].mag - P.mag, P.shells);
   P.cd = Math.max(P.cd, P.reloadT);
   SFX.swap();
   updateHUD();

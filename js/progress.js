@@ -41,7 +41,7 @@ const WUPGRADES = [
       a:{ name:'KARCZOWANIE',     desc:'ścina od razu drzewo poniżej 25% HP (boss: 10%)' },
       b:{ name:'SZEROKI ROZMACH', desc:'szerszy zamach; zakorzenione dostają ×3 i są wyrywane' } } },
   { key:'mower',   wname:'KOSIARKA',   base:208, opts:{
-      a:{ name:'NAOSTRZONE ZĘBY', desc:'3× kadencja — 1800 strzałów/min' },
+      a:{ name:'NAOSTRZONE ZĘBY', desc:'3× szybkostrzelność — 1800 strzałów/min' },
       b:{ name:'PRZEBIJANIE',     desc:'pocisk rani każde drzewo na linii strzału' } } },
   { key:'shotgun', wname:'DUBELTÓWKA', base:208, opts:{
       a:{ name:'CZTERY NABOJE',   desc:'magazynek 4 zamiast 2' },
