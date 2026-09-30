@@ -8,13 +8,11 @@ const WEAPONS = [
   // siekiera: zamach w łuku trafia WSZYSTKIE drzewa w stożku, x2 do sadzonek,
   // odrzuca je i daje krótką nietykalność — narzędzie na tłum przy pustym magazynku
   { name:'SIEKIERA',  ammo:-1, cd:0.42, dmg:52, melee:true, range:2.1,
-    arc:0.62, swing:0.11, knock:0.9, iframe:0.34 },
+    arc:0.62, swing:0.11, knock:0.9, iframe:0.34, semi:true },
   { name:'KOSIARKA',  ammo:'bullets',cd:0.100,dmg:9,  pellets:1, spread:0.045,range:17 },
-  // dubeltówka: dwie lufy, potem przeładowanie — DPS ten sam, ale wymusza rytm
-  { name:'DUBELTÓWKA',ammo:'shells', cd:0.34, dmg:13, pellets:9, spread:0.13, range:15,
-    // cykl = cd + reload = 1.44 s na dwa strzały → 1.39 strzału/s, dokładnie tyle
-    // co dawne cd:0.72. Ten sam DPS, ale wymuszony rytm.
-    mag:2, reload:1.10 },
+  // dubeltówka: półautomat — strzał na każde kliknięcie bez przerwy, po opróżnieniu luf przeładowanie
+  { name:'DUBELTÓWKA',ammo:'shells', cd:0, dmg:13, pellets:9, spread:0.13, range:15,
+    mag:2, reload:1.10, semi:true },
   // miotacz: krótki stożek, sam w sobie słaby, ale podpala — DoT dobija to,
   // czego strumień nie zdążył, i najszybciej czyści sadzonki z mateczników
   { name:'MIOTACZ',   ammo:'fuel',   cd:0.055,dmg:4.2, flame:true, range:4.6,
@@ -24,7 +22,7 @@ const WEAPONS = [
 // applyWeaponUpgrades() zawsze liczy od tych liczb, więc nie da się ich zdublować
 // sloty broni (klawisze 1–4)
 const W_AXE=0, W_MOWER=1, W_SHOTGUN=2, W_FLAME=3;
-const WEAPON_BASE = { arc:WEAPONS[W_AXE].arc, mag:WEAPONS[W_SHOTGUN].mag, cd:WEAPONS[W_MOWER].cd, sgcd:WEAPONS[W_SHOTGUN].cd };
+const WEAPON_BASE = { arc:WEAPONS[W_AXE].arc, mag:WEAPONS[W_SHOTGUN].mag, cd:WEAPONS[W_MOWER].cd };
 
 let P, enemies, decals, pickups, shots, parts, wave, waveQueue, waveTimer,
     kills, score, running, gameOver, started, msgTimer, camShake, flashLight, hurtFlash, bobT;

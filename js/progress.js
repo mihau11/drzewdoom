@@ -44,7 +44,7 @@ const WUPGRADES = [
       a:{ name:'NAOSTRZONE ZĘBY', desc:'3× kadencja — 1800 strzałów/min' },
       b:{ name:'PRZEBIJANIE',     desc:'pocisk rani każde drzewo na linii strzału' } } },
   { key:'shotgun', wname:'DUBELTÓWKA', base:208, opts:{
-      a:{ name:'CZTERY NABOJE',   desc:'magazynek 4, strzał na każde kliknięcie bez przerwy' },
+      a:{ name:'CZTERY NABOJE',   desc:'magazynek 4 zamiast 2' },
       b:{ name:'OGŁUSZENIE',      desc:'trafione drzewo stoi 0,6 s (boss 0,3 s)' } } },
   { key:'flame',   wname:'MIOTACZ',    base:208, opts:{
       a:{ name:'POŻAR LASU',      desc:'ogień przeskakuje na drzewa obok płonącego' },
@@ -126,8 +126,6 @@ function applyWeaponUpgrades(){
   WEAPONS[W_MOWER].cd     = WEAPON_BASE.cd  / (mo==='a' ? 3 : 1);
   WEAPONS[W_MOWER].pierce = mo==='b';
   WEAPONS[W_SHOTGUN].mag  = WEAPON_BASE.mag + (sg==='a' ? 2 : 0);
-  WEAPONS[W_SHOTGUN].cd   = sg==='a' ? 0 : WEAPON_BASE.sgcd;
-  WEAPONS[W_SHOTGUN].semi = sg==='a';              // strzał na kliknięcie, nie na przytrzymanie
   if(P && P.mag>WEAPONS[W_SHOTGUN].mag) P.mag = WEAPONS[W_SHOTGUN].mag;
 }
 applyWeaponUpgrades();
