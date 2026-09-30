@@ -1,0 +1,1280 @@
+<title>Remont rendera doom-drzewa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap&subset=latin,latin-ext">
+<style>
+:root{
+  --paper:#eef0e8; --raise:#f7f8f3; --sunk:#e4e7dc;
+  --ink:#14180f; --ink-2:#3d4436; --ink-3:#6d7366;
+  --rule:#d1d6c6; --rule-2:#bfc5b2;
+  --a:#3f7a2b;  --a-soft:#e2ecd9;   /* pakiet A — mech */
+  --b:#a8701c;  --b-soft:#f3e7cf;   /* pakiet B — bursztyn */
+  --warn:#9e3d24; --warn-soft:#f5e2dc;
+  --code-bg:#f7f8f3; --code-ink:#23291c; --code-key:#3f7a2b; --code-com:#8c9382; --code-num:#a8701c;
+  --shadow:0 1px 0 rgba(20,24,15,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0d100b; --raise:#151a12; --sunk:#0a0d08;
+    --ink:#dfe4d4; --ink-2:#b2bAa4; --ink-3:#7d846f;
+    --rule:#252c1e; --rule-2:#333b2a;
+    --a:#8fc472; --a-soft:#1c2716;
+    --b:#e0ac57; --b-soft:#2a2010;
+    --warn:#e08e73; --warn-soft:#2c1610;
+    --code-bg:#11150e; --code-ink:#cfd6c2; --code-key:#8fc472; --code-com:#5f6754; --code-num:#e0ac57;
+    --shadow:0 1px 0 rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0d100b; --raise:#151a12; --sunk:#0a0d08;
+  --ink:#dfe4d4; --ink-2:#b2baa4; --ink-3:#7d846f;
+  --rule:#252c1e; --rule-2:#333b2a;
+  --a:#8fc472; --a-soft:#1c2716;
+  --b:#e0ac57; --b-soft:#2a2010;
+  --warn:#e08e73; --warn-soft:#2c1610;
+  --code-bg:#11150e; --code-ink:#cfd6c2; --code-key:#8fc472; --code-com:#5f6754; --code-num:#e0ac57;
+  --shadow:0 1px 0 rgba(0,0,0,.4);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  font-size:16px; line-height:1.62; margin:0;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:0 28px 120px}
+.col{max-width:63ch}
+
+h1,h2,h3,h4{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif; text-wrap:balance; margin:0}
+h1{font-size:clamp(2.1rem,5vw,3.1rem); font-weight:700; letter-spacing:-.015em; line-height:1.06}
+h2{font-size:clamp(1.5rem,3vw,2rem); font-weight:700; letter-spacing:-.01em; line-height:1.15}
+h3{font-size:1.22rem; font-weight:600; line-height:1.25}
+h4{font-size:.98rem; font-weight:600}
+p{margin:0}
+
+code,kbd,pre,.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace}
+p code,li code,td code,dd code{
+  font-size:.87em; background:var(--sunk); border:1px solid var(--rule);
+  padding:.05em .32em; border-radius:3px; white-space:nowrap;
+}
+.lbl{
+  font-family:"IBM Plex Mono",monospace; font-size:.7rem; font-weight:500;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3);
+}
+
+/* ---------- nagłówek ---------- */
+header.top{border-bottom:2px solid var(--ink); padding:56px 0 28px; margin-bottom:0}
+.eyebrow{display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; margin-bottom:20px}
+.lede{font-size:1.12rem; color:var(--ink-2); margin-top:20px; max-width:62ch}
+
+/* ---------- fakty wyjściowe ---------- */
+.facts{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+  border-top:1px solid var(--rule); margin-top:36px;
+}
+.facts div{padding:16px 18px 16px 0; border-right:1px solid var(--rule)}
+.facts div:last-child{border-right:0}
+.facts .v{font-family:"IBM Plex Mono",monospace; font-size:1.3rem; font-weight:600; font-variant-numeric:tabular-nums; display:block; margin-top:4px}
+.facts .n{font-size:.8rem; color:var(--ink-3); display:block; margin-top:2px}
+
+section{padding-top:64px}
+.rule{border:0; border-top:1px solid var(--rule); margin:0}
+
+/* ---------- receptury ---------- */
+.recipes{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px; margin-top:32px}
+.recipe{border:1px solid var(--rule-2); background:var(--raise); padding:22px; display:flex; flex-direction:column; gap:14px}
+.recipe.pick{border-color:var(--ink); border-width:2px; padding:21px}
+.recipe h3{display:flex; align-items:baseline; gap:10px}
+.recipe .tag{font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; border:1px solid currentColor; padding:1px 6px; border-radius:2px}
+.recipe .why{color:var(--ink-2); font-size:.94rem}
+.seq{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0; padding:0; list-style:none}
+.seq li{font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:500;
+  background:var(--sunk); border:1px solid var(--rule); padding:2px 7px; border-radius:2px}
+.seq li.arrow{background:none; border:0; color:var(--ink-3); padding:2px 0}
+.tot{display:grid; grid-template-columns:auto 1fr; gap:2px 14px; font-size:.88rem; margin-top:auto; padding-top:14px; border-top:1px solid var(--rule)}
+.tot dt{color:var(--ink-3)} .tot dd{margin:0; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+
+/* ---------- filtr ---------- */
+.filterbar{
+  position:sticky; top:0; z-index:20; background:var(--paper);
+  border-bottom:1px solid var(--rule); padding:12px 0; margin-top:48px;
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+}
+.filterbar button{
+  font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:500;
+  background:var(--raise); color:var(--ink-2); border:1px solid var(--rule-2);
+  padding:5px 12px; border-radius:2px; cursor:pointer;
+}
+.filterbar button:hover{border-color:var(--ink-3); color:var(--ink)}
+.filterbar button[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.filterbar button:focus-visible{outline:2px solid var(--a); outline-offset:2px}
+
+/* ---------- kroki ---------- */
+.step{border-top:1px solid var(--rule); padding:38px 0 6px; scroll-margin-top:64px}
+.step-head{display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap}
+.sid{
+  font-family:"IBM Plex Mono",monospace; font-size:1.05rem; font-weight:600;
+  min-width:3.4rem; padding-top:2px; color:var(--ink-3);
+}
+.step[data-acc="a"] .sid{color:var(--a)} .step[data-acc="b"] .sid{color:var(--b)}
+.step-head h3{flex:1 1 18ch}
+.chips{display:flex; gap:5px; flex-wrap:wrap}
+.chip{font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+  padding:2px 7px; border-radius:2px; border:1px solid transparent; white-space:nowrap}
+.chip.A{background:var(--a-soft); color:var(--a); border-color:var(--a)}
+.chip.B{background:var(--b-soft); color:var(--b); border-color:var(--b)}
+.chip.M{background:transparent; color:var(--ink); border-color:var(--ink)}
+.step-body{margin-left:0; margin-top:14px; display:flex; flex-direction:column; gap:16px}
+@media(min-width:900px){ .step-body{margin-left:calc(3.4rem + 16px)} }
+
+.field{display:grid; grid-template-columns:6.5rem 1fr; gap:14px; align-items:start}
+.field > .lbl{padding-top:.28em}
+.field > div{max-width:66ch}
+@media(max-width:640px){ .field{grid-template-columns:1fr; gap:4px} }
+
+pre{
+  background:var(--code-bg); color:var(--code-ink); border:1px solid var(--rule);
+  border-left:3px solid var(--rule-2);
+  padding:14px 16px; margin:0; overflow-x:auto; font-size:.815rem; line-height:1.58;
+  border-radius:2px;
+}
+.step[data-acc="a"] pre{border-left-color:var(--a)}
+.step[data-acc="b"] pre{border-left-color:var(--b)}
+pre .c{color:var(--code-com); font-style:italic}
+pre .k{color:var(--code-key)}
+pre .n{color:var(--code-num)}
+.codewrap{position:relative}
+.copy{
+  position:absolute; top:7px; right:7px; font-family:"IBM Plex Mono",monospace; font-size:.66rem;
+  background:var(--paper); color:var(--ink-3); border:1px solid var(--rule-2);
+  padding:2px 7px; border-radius:2px; cursor:pointer; opacity:0; transition:opacity .12s;
+}
+.codewrap:hover .copy, .copy:focus-visible{opacity:1}
+.codecap{font-size:.78rem; color:var(--ink-3); font-family:"IBM Plex Mono",monospace; margin-bottom:5px}
+
+.trap{border-left:3px solid var(--warn); background:var(--warn-soft); padding:11px 14px; font-size:.92rem}
+.trap strong{color:var(--warn)}
+ul.tight{margin:0; padding-left:1.15em; display:flex; flex-direction:column; gap:5px}
+
+/* ---------- tabele ---------- */
+.tablewrap{overflow-x:auto; margin-top:28px; border-top:1px solid var(--ink)}
+table{border-collapse:collapse; width:100%; font-size:.9rem}
+th,td{text-align:left; padding:9px 16px 9px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:500}
+td.num,th.num{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+tr.hi td{background:var(--sunk)}
+
+.note{font-size:.9rem; color:var(--ink-2); max-width:64ch}
+.hidden-step{display:none}
+
+a{color:var(--ink); text-decoration-color:var(--rule-2); text-underline-offset:3px}
+a:hover{text-decoration-color:currentColor}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">
+    <span class="lbl">doom-drzewa.html · 105 KB · raycaster programowy</span>
+  </div>
+  <h1>Remont rendera<br>doom-drzewa</h1>
+  <p class="lede">Trzy pakiety zmian graficznych, rozpisane na kroki gotowe do wklejenia. Każdy krok jest opisany raz; pakiety to receptury, które się nimi posługują — a kroków używa więcej niż jeden pakiet, więc filtr u góry listy pokazuje tylko te, które cię dotyczą.</p>
+
+  <div class="facts">
+    <div><span class="lbl">plik</span><span class="v">105 KB</span><span class="n">2502 linie, zero assetów</span></div>
+    <div><span class="lbl">bufor</span><span class="v">480×270</span><span class="n">129 600 px / klatkę</span></div>
+    <div><span class="lbl">tekstury</span><span class="v">64²</span><span class="n">32 poziomy z wpaloną mgłą</span></div>
+    <div><span class="lbl">sprite'y drzew</span><span class="v">11,9 MB</span><span class="n">8 rodzajów × 4 klatki × 16 poz.</span></div>
+    <div><span class="lbl">inner loop</span><span class="v">1 odczyt</span><span class="n">na piksel, bez matematyki</span></div>
+  </div>
+</header>
+
+<section>
+  <div class="col">
+    <h2>Zanim cokolwiek dotkniesz</h2>
+    <p style="margin-top:14px">Wszystkie szacunki CPU w tym dokumencie są szacunkami. Renderer jest programowy i pisze do <code>Uint32Array</code>, więc każda zmiana w wewnętrznej pętli jest odczuwalna, a różnice między maszynami są duże. Dodaj licznik <em>przed</em> pierwszą zmianą — inaczej nie będziesz wiedział, który krok kosztował.</p>
+  </div>
+
+  <div class="step" data-pkg="A B M" data-acc="" id="P0">
+    <div class="step-head">
+      <div class="sid">P0</div>
+      <h3>Licznik czasu renderu</h3>
+      <div class="chips"><span class="chip A">Pakiet A</span><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+    </div>
+    <div class="step-body">
+      <div class="field"><span class="lbl">Gdzie</span><div><code>frame(now)</code>, linia 1344</div></div>
+      <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+        <button class="copy" type="button">kopiuj</button>
+<pre><span class="c">// obok reszty zmiennych globalnych</span>
+let renderMs=<span class="n">0</span>, frameN=<span class="n">0</span>;
+
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt=(now-last)/<span class="n">1000</span>; last=now;
+  dt=Math.min(dt,<span class="n">0.05</span>);
+  if(running) update(dt);
+  else if(gameOver) update(Math.min(dt,<span class="n">0.03</span>)*<span class="n">0.35</span>);
+
+  const t0=performance.now();
+  render();
+  renderMs = renderMs*<span class="n">0.92</span> + (performance.now()-t0)*<span class="n">0.08</span>;
+
+  drawMini();
+
+  <span class="c">// rysuj po putImageData, na warstwie ctx — nie wchodzi do bufora</span>
+  if(((frameN++)&<span class="n">15</span>)===<span class="n">0</span>) document.title =
+    renderMs.toFixed(<span class="n">2</span>)+<span class="k">' ms / render'</span>;
+}</pre></div></div>
+      <div class="field"><span class="lbl">Sprawdzian</span><div>Zapisz odczyt dla wszystkich trzech rozdzielczości z opcji, stojąc w tym samym miejscu na poziomie 1. To twoja linia bazowa; każdy kolejny krok porównujesz do niej.</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="col">
+    <h2>Trzy receptury</h2>
+    <p style="margin-top:14px">Pakiety różnią się nie ilością pracy, lecz tym, <em>gdzie</em> ją inwestują: A podnosi jakość powierzchni, B podnosi jakość oświetlenia, mieszanka bierze z A dwa kroki o najlepszym przeliczniku i całą warstwę światła z B.</p>
+  </div>
+
+  <div class="recipes">
+    <div class="recipe" style="color:var(--a)">
+      <h3 style="color:var(--ink)"><span class="tag">Pakiet A</span></h3>
+      <p style="color:var(--ink); font-family:'IBM Plex Sans Condensed',sans-serif; font-size:1.25rem; font-weight:600; margin-top:-6px">Powierzchnie</p>
+      <p class="why">Tekstury przestają być zbiorem losowych prostokątów. Bez ruszania architektury cieniowania, więc ryzyko regresji wydajności jest najniższe z trzech.</p>
+      <ol class="seq">
+        <li>P0</li><li class="arrow">→</li><li>A2</li><li class="arrow">→</li><li>A3</li><li class="arrow">→</li><li>A5</li><li class="arrow">→</li><li>A4</li><li class="arrow">→</li><li>A6</li>
+      </ol>
+      <dl class="tot">
+        <dt>Kod</dt><dd>+14–17 KB → ~121 KB</dd>
+        <dt>RAM</dt><dd>16 → ~23 MB</dd>
+        <dt>CPU</dt><dd>−5% … +20%</dd>
+        <dt>Czas</dt><dd>2–3 dni</dd>
+      </dl>
+    </div>
+
+    <div class="recipe" style="color:var(--b)">
+      <h3 style="color:var(--ink)"><span class="tag">Pakiet B</span></h3>
+      <p style="color:var(--ink); font-family:'IBM Plex Sans Condensed',sans-serif; font-size:1.25rem; font-weight:600; margin-top:-6px">Światło i cienie</p>
+      <p class="why">Las przestaje być równomiernie oświetlony. Najwyższy sufit wizualny, ale wymaga przebudowy cieniowania i najuważniejszego pilnowania budżetu klatki.</p>
+      <ol class="seq">
+        <li>P0</li><li class="arrow">→</li><li>B1</li><li class="arrow">→</li><li>B2</li><li class="arrow">→</li><li>B7</li><li class="arrow">→</li><li>B3</li><li class="arrow">→</li><li>B4</li><li class="arrow">→</li><li>B5</li><li class="arrow">→</li><li>B8</li><li class="arrow">→</li><li>B10</li>
+      </ol>
+      <dl class="tot">
+        <dt>Kod</dt><dd>+18–22 KB → ~125 KB</dd>
+        <dt>RAM</dt><dd>16 MB (bez zmian)</dd>
+        <dt>CPU</dt><dd>+30–45%</dd>
+        <dt>Czas</dt><dd>3–5 dni</dd>
+      </dl>
+    </div>
+
+    <div class="recipe pick">
+      <h3><span class="tag">Mieszanka</span> <span class="lbl" style="letter-spacing:.1em">rekomendacja</span></h3>
+      <p style="font-family:'IBM Plex Sans Condensed',sans-serif; font-size:1.25rem; font-weight:600; margin-top:-6px">Szum, ostrość, światło</p>
+      <p class="why">Dwa kroki z A o najlepszym przeliczniku jakości do kosztu, plus cała warstwa światła z B w wersji, która omija najdroższą pętlę — podłogę. Tu krzywa jakość/wysiłek się załamuje.</p>
+      <ol class="seq">
+        <li>P0</li><li class="arrow">→</li><li>A2</li><li class="arrow">→</li><li>A3</li><li class="arrow">→</li><li>B1★</li><li class="arrow">→</li><li>B2</li><li class="arrow">→</li><li>B7</li><li class="arrow">→</li><li>B4</li><li class="arrow">→</li><li>B5</li><li class="arrow">→</li><li>B8</li><li class="arrow">→</li><li>B10</li>
+      </ol>
+      <dl class="tot">
+        <dt>Kod</dt><dd>+24–30 KB → ~132 KB</dd>
+        <dt>RAM</dt><dd>16 → ~21 MB</dd>
+        <dt>CPU</dt><dd>+20–30%</dd>
+        <dt>Czas</dt><dd>2–3 dni</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="col" style="margin-top:28px">
+    <div class="trap"><strong>Korekta składu.</strong> Mieszanka w pierwotnym brzmieniu (A2 + A3 + B2 + B4 + B5 + B7 + B8 + B10) nie jest wykonalna: B4, B5 i B8 mnożą kolor światła przez teksel, a obecny renderer ma tylko jednowymiarowy LUT mgły. Dlatego mieszanka dostaje <strong>B1★</strong> — okrojone B1, które mnoży tylko na ścianach (raz na kolumnę) i sprite'ach (raz na sprite), zostawiając podłogę na starym LUT. Skutkiem ubocznym B3 przestaje być potrzebne, a koszt CPU spada z +30–45% do +20–30%.</div>
+  </div>
+</section>
+
+<div class="filterbar" role="group" aria-label="Filtr pakietu">
+  <span class="lbl" style="margin-right:4px">Pokaż kroki</span>
+  <button type="button" data-f="all" aria-pressed="true">wszystkie</button>
+  <button type="button" data-f="A" aria-pressed="false">pakiet A</button>
+  <button type="button" data-f="B" aria-pressed="false">pakiet B</button>
+  <button type="button" data-f="M" aria-pressed="false">mieszanka</button>
+  <span class="lbl" id="fcount" style="margin-left:auto"></span>
+</div>
+
+<section id="steps" style="padding-top:24px">
+
+<!-- ══════════════════ A2 ══════════════════ -->
+<div class="step" data-pkg="A M" data-acc="a" id="A2">
+  <div class="step-head">
+    <div class="sid">A2</div>
+    <h3>Szum fBm zamiast losowych prostokątów</h3>
+    <div class="chips"><span class="chip A">Pakiet A</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div><code>texBark</code> rysuje dziś 70 losowych prostokątów, <code>texGrass</code> — 900 losowych pikseli. Stąd płaskość i migotanie. Kafelkujący szum wielooktawowy daje korze prawdziwe słoje, a kamieniowi cętkowanie. To najtańszy duży skok jakości w całym dokumencie.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div>Generator wstaw po <code>lerp</code> (linia ~215). Potem przepisz <code>texBark</code> (451), <code>texStone</code> (468), <code>texGrass</code> (496).</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">1/2 — generator, wstaw po definicji lerp</div>
+<pre><span class="c">/* ---------- szum proceduralny (kafelkujący) ---------- */</span>
+function hash2(x,y,seed){
+  let h = Math.imul(x,<span class="n">374761393</span>) + Math.imul(y,<span class="n">668265263</span>) + Math.imul(seed,<span class="n">1274126177</span>);
+  h = Math.imul(h ^ (h&gt;&gt;&gt;<span class="n">13</span>), <span class="n">1274126177</span>);
+  return ((h ^ (h&gt;&gt;&gt;<span class="n">16</span>))&gt;&gt;&gt;<span class="n">0</span>) / <span class="n">4294967296</span>;
+}
+const smooth = t =&gt; t*t*(<span class="n">3</span>-<span class="n">2</span>*t);
+
+<span class="c">// u,v w [0,1). `per` to liczba komórek siatki na całą teksturę —</span>
+<span class="c">// krata zawija się mod `per`, więc tekstura kafelkuje się bez szwu.</span>
+function vnoise(u,v,per,seed){
+  const x=u*per, y=v*per;
+  const xi=Math.floor(x), yi=Math.floor(y);
+  const xf=smooth(x-xi), yf=smooth(y-yi);
+  const x0=((xi%per)+per)%per, y0=((yi%per)+per)%per;
+  const x1=(x0+<span class="n">1</span>)%per,    y1=(y0+<span class="n">1</span>)%per;
+  return lerp(lerp(hash2(x0,y0,seed), hash2(x1,y0,seed), xf),
+              lerp(hash2(x0,y1,seed), hash2(x1,y1,seed), xf), yf);
+}
+
+<span class="c">// fBm: każda kolejna oktawa dwa razy gęstsza i dwa razy cichsza</span>
+function fbm(u,v,base,seed,oct){
+  let s=<span class="n">0</span>, amp=<span class="n">0.5</span>, norm=<span class="n">0</span>, f=base;
+  for(let o=<span class="n">0</span>;o&lt;oct;o++){
+    s += vnoise(u,v,f,seed+o*<span class="n">131</span>)*amp;
+    norm += amp; amp *= <span class="n">0.5</span>; f *= <span class="n">2</span>;
+  }
+  return s/norm;
+}
+function hexRGB(h){ const n=parseInt(h.slice(<span class="n">1</span>),<span class="n">16</span>); return [(n&gt;&gt;<span class="n">16</span>)&amp;<span class="n">255</span>,(n&gt;&gt;<span class="n">8</span>)&amp;<span class="n">255</span>,n&amp;<span class="n">255</span>]; }
+
+const TEXN = <span class="n">64</span>;   <span class="c">// podnieś na 128, jeśli robisz też A1</span></pre></div></div>
+
+    <div class="field"><span class="lbl"></span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">2/2 — texBark w całości, zastępuje linie 451–466</div>
+<pre>function texBark(B, variant){
+  const N=TEXN, sd=<span class="n">7</span>+(variant||<span class="n">0</span>)*<span class="n">911</span>;
+  const c=makeCanvas(N,N), g=c.getContext(<span class="k">'2d'</span>);
+  const im=g.createImageData(N,N), px=new Uint32Array(im.data.buffer);
+  const base=hexRGB(B.bark), dk=B.barkDark, lt=B.barkLite;
+  const hmap=new Uint8Array(N*N);              <span class="c">// przyda się w A5</span>
+
+  for(let y=<span class="n">0</span>;y&lt;N;y++) for(let x=<span class="n">0</span>;x&lt;N;x++){
+    const u=x/N, v=y/N;
+    <span class="c">// domena zgnieciona w pionie -&gt; włókna biegną wzdłuż pnia</span>
+    const fib   = fbm(u, v*<span class="n">0.15</span>, <span class="n">12</span>, sd,    <span class="n">3</span>);
+    <span class="c">// funkcja grzbietowa: |2n-1| daje ostre bruzdy zamiast miękkich plam</span>
+    const bruzd = Math.abs(fbm(u, v*<span class="n">0.25</span>, <span class="n">6</span>, sd+<span class="n">23</span>, <span class="n">2</span>)*<span class="n">2</span>-<span class="n">1</span>);
+    const plamy = fbm(u, v, <span class="n">3</span>, sd+<span class="n">41</span>, <span class="n">2</span>);         <span class="c">// duże przebarwienia</span>
+
+    const t = clamp(<span class="n">0.30</span> + fib*<span class="n">0.50</span> + (<span class="n">1</span>-bruzd)*<span class="n">0.35</span> - plamy*<span class="n">0.18</span>, <span class="n">0</span>, <span class="n">1</span>);
+    hmap[y*N+x] = t*<span class="n">255</span>|<span class="n">0</span>;
+
+    const lo = t&lt;<span class="n">0.5</span>, m = lo ? t*<span class="n">2</span> : (t-<span class="n">0.5</span>)*<span class="n">2</span>;
+    const r = lo ? lerp(dk[<span class="n">0</span>],base[<span class="n">0</span>],m) : lerp(base[<span class="n">0</span>],lt[<span class="n">0</span>],m);
+    const gg= lo ? lerp(dk[<span class="n">1</span>],base[<span class="n">1</span>],m) : lerp(base[<span class="n">1</span>],lt[<span class="n">1</span>],m);
+    const b = lo ? lerp(dk[<span class="n">2</span>],base[<span class="n">2</span>],m) : lerp(base[<span class="n">2</span>],lt[<span class="n">2</span>],m);
+    px[y*N+x] = (<span class="n">255</span>&lt;&lt;<span class="n">24</span>)|((b|<span class="n">0</span>)&lt;&lt;<span class="n">16</span>)|((gg|<span class="n">0</span>)&lt;&lt;<span class="n">8</span>)|(r|<span class="n">0</span>);
+  }
+  g.putImageData(im,<span class="n">0</span>,<span class="n">0</span>);
+
+  <span class="c">// sęki zostają na canvasie — kilka elips czyta się lepiej niż szum</span>
+  const r=mulberry32(sd), s=N/<span class="n">64</span>;
+  for(let i=<span class="n">0</span>;i&lt;<span class="n">5</span>;i++){
+    const x=(<span class="n">6</span>+r()*<span class="n">52</span>)*s, y=(<span class="n">6</span>+r()*<span class="n">52</span>)*s, rr=(<span class="n">3</span>+r()*<span class="n">4</span>)*s;
+    g.fillStyle=B.knot[<span class="n">0</span>]; g.beginPath(); g.ellipse(x,y,rr,rr*.<span class="n">7</span>,<span class="n">0</span>,<span class="n">0</span>,<span class="n">7</span>); g.fill();
+    g.fillStyle=B.knot[<span class="n">1</span>]; g.beginPath(); g.ellipse(x,y,rr*.<span class="n">5</span>,rr*.<span class="n">35</span>,<span class="n">0</span>,<span class="n">0</span>,<span class="n">7</span>); g.fill();
+  }
+  const tex=grab(c); tex.h8=hmap; return tex;
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Analogicznie</span><div>
+      <ul class="tight">
+        <li><strong>texStone</strong> — zostaw siatkę bloków z <code>fillRect</code> (daje czytelny rytm muru), ale zamiast 200 losowych czarnych pikseli nałóż warstwę <code>fbm(u,v,8,sd,3)</code> jako cętkowanie ±18%, a spoiny wytnij funkcją odległości od krawędzi bloku. Mech w wariancie <code>moss</code>: próg na <code>fbm(u,v,4,sd+7,2) &gt; 0.55</code> zamiast 90 losowych elips — mech układa się wtedy w płaty, a nie w konfetti.</li>
+        <li><strong>texGrass</strong> — dwie oktawy o różnej skali: <code>fbm(u,v,5,99,2)</code> rozdziela <code>grassA</code> od <code>grassB</code> w kępy, a <code>fbm(u,v,24,99,1)</code> dodaje ziarno pojedynczych źdźbeł. Iskierki (<code>B.sparkle</code>) i ściółkę zostaw na <code>mulberry32</code> — są rzadkie i mają być nieregularne.</li>
+      </ul>
+    </div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Usuń ciemne pasy</strong> <code>g.fillRect(0,0,64,2)</code> i <code>fillRect(0,62,64,2)</code> z końca <code>texBark</code>. Dawniej maskowały szew kafla; przy szumie kafelkującym szwu nie ma, a pasy stają się widocznymi poziomymi liniami na każdym pniu.</div>
+      <p style="margin-top:10px"><code>per</code> w <code>vnoise</code> musi być liczbą całkowitą, inaczej kafelkowanie przestaje działać i zobaczysz szew na styku ścian. W <code>fbm</code> podawaj <code>base</code> jako potęgę dwójki (3, 6, 12 też są bezpieczne — ważne, że <code>f*=2</code> zachowuje całkowitość).</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +2 KB. RAM bez zmian. CPU w runtime <strong>zero</strong> — to koszt generacji. Przy 64² i pięciu teksturach ok. 6 ms na biom; przy 128² ok. 25 ms, raz na poziom, w <code>rebuildArt</code>.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Podejdź wplotem do ściany z kory. Powinieneś widzieć pionowe bruzdy i sęki, a nie poziome paski. Odsuń się i obróć: brak pulsowania jasności na granicach kafli.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ A3 ══════════════════ -->
+<div class="step" data-pkg="A M" data-acc="a" id="A3">
+  <div class="step-head">
+    <div class="sid">A3</div>
+    <h3>Mipmapy — koniec z migotaniem w ruchu</h3>
+    <div class="chips"><span class="chip A">Pakiet A</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Daleka ściana zajmuje 6 pikseli wysokości i próbkuje co dziesiąty teksel — stąd szum przy każdym ruchu myszy. Trzy poziomy zmniejszonej tekstury usuwają to zjawisko i, co nietypowe, <em>przyspieszają</em> render: mniejsze tablice mieszczą się w cache L1.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div><code>shadeLevels</code> (375) opakuj w <code>buildTex</code>; zmień wybór tekstury w <code>drawWalls</code> (2016) i <code>drawFloor</code> (1985).</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">1/2 — budowa piramidy, obok shadeLevels</div>
+<pre>const MIP_N = <span class="n">3</span>;
+
+<span class="c">// filtr pudełkowy 2×2; teksele w pełni przezroczyste nie brudzą średniej,</span>
+<span class="c">// bo inaczej sprite'y dostają aureolę w kolorze tła</span>
+function downsample(src,w,h){
+  const w2=w&gt;&gt;<span class="n">1</span>, h2=h&gt;&gt;<span class="n">1</span>, out=new Uint32Array(w2*h2);
+  for(let y=<span class="n">0</span>;y&lt;h2;y++) for(let x=<span class="n">0</span>;x&lt;w2;x++){
+    let r=<span class="n">0</span>,g=<span class="n">0</span>,b=<span class="n">0</span>,n=<span class="n">0</span>;
+    for(let dy=<span class="n">0</span>;dy&lt;<span class="n">2</span>;dy++) for(let dx=<span class="n">0</span>;dx&lt;<span class="n">2</span>;dx++){
+      const c=src[(y*<span class="n">2</span>+dy)*w + x*<span class="n">2</span>+dx];
+      if(((c&gt;&gt;&gt;<span class="n">24</span>)&amp;<span class="n">255</span>)&lt;<span class="n">128</span>) continue;
+      r+=c&amp;<span class="n">255</span>; g+=(c&gt;&gt;&gt;<span class="n">8</span>)&amp;<span class="n">255</span>; b+=(c&gt;&gt;&gt;<span class="n">16</span>)&amp;<span class="n">255</span>; n++;
+    }
+    <span class="c">// próg 2 z 4: sprite zachowuje sylwetkę zamiast się rozpuszczać</span>
+    out[y*w2+x] = n&lt;<span class="n">2</span> ? <span class="n">0</span>
+      : (<span class="n">255</span>&lt;&lt;<span class="n">24</span>)|(((b/n)|<span class="n">0</span>)&lt;&lt;<span class="n">16</span>)|(((g/n)|<span class="n">0</span>)&lt;&lt;<span class="n">8</span>)|((r/n)|<span class="n">0</span>);
+  }
+  return {w:w2,h:h2,data:out};
+}
+
+<span class="c">// zastępuje bezpośrednie wywołania shadeLevels(...) w rebuildArt/makeSprite</span>
+function buildTex(tex, n){
+  const mips=[{w:tex.w,h:tex.h,data:tex.data}];
+  while(mips.length&lt;MIP_N){
+    const m=mips[mips.length-<span class="n">1</span>];
+    if(m.w&lt;=<span class="n">8</span>||m.h&lt;=<span class="n">8</span>) break;
+    mips.push(downsample(m.data,m.w,m.h));
+  }
+  tex.mip = mips.map(m =&gt; shadeLevels(m, n));
+  tex.w=mips[<span class="n">0</span>].w; tex.h=mips[<span class="n">0</span>].h; tex.n=n;
+  return tex;
+}</pre></div></div>
+
+    <div class="field"><span class="lbl"></span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">2/2 — wybór poziomu w drawWalls, zastępuje linie 2037–2064</div>
+<pre>    const tex = TEX[hit];
+
+    <span class="c">// kolumna o wysokości lineH pokrywa tex.h tekseli.</span>
+    <span class="c">// lineH &gt;= tex.h  -&gt; mip 0, dalej połowa, ćwiartka.</span>
+    const mip = tex.mip[ lineH &gt;= tex.h ? <span class="n">0</span>
+                       : lineH &gt;= (tex.h&gt;&gt;<span class="n">1</span>) ? <span class="n">1</span> : <span class="n">2</span> ];
+    const tw=mip.w, th=mip.h;
+
+    let wallX = side===<span class="n">0</span> ? P.y + dist*rdy : P.x + dist*rdx;
+    wallX -= Math.floor(wallX);
+    let tx = (wallX*tw)|<span class="n">0</span>;                 <span class="c">// ⚠ tw, nie tex.w</span>
+    if(side===<span class="n">0</span> &amp;&amp; rdx&gt;<span class="n">0</span>) tx=tw-tx-<span class="n">1</span>;
+    if(side===<span class="n">1</span> &amp;&amp; rdy&lt;<span class="n">0</span>) tx=tw-tx-<span class="n">1</span>;
+
+    let lvl = (dist/MAXFOG*<span class="n">31</span>)|<span class="n">0</span>;
+    if(side===<span class="n">1</span>) lvl+=<span class="n">4</span>;
+    lvl -= flashLight|<span class="n">0</span>;
+    lvl = clamp(lvl,<span class="n">0</span>,<span class="n">31</span>);
+    const t = mip.lv[lvl];
+
+    const stepT = th/lineH;                  <span class="c">// ⚠ th, nie tex.h</span>
+    let texPos = (drawY0 - camShift - H/<span class="n">2</span> + lineH/<span class="n">2</span>)*stepT;
+    for(let y=drawY0;y&lt;=drawY1;y++){
+      const ty = ((texPos|<span class="n">0</span>) &amp; (th-<span class="n">1</span>));
+      texPos += stepT;
+      buf[y*W+x] = t[ty*tw+tx];
+    }</pre></div></div>
+
+    <div class="field"><span class="lbl">drawFloor</span><div>Analogicznie, ale kryterium jest dystans wiersza, nie wysokość kolumny — wstaw tuż po obliczeniu <code>rowDist</code>:
+      <div class="codewrap" style="margin-top:10px"><button class="copy" type="button">kopiuj</button>
+<pre>const mip = GRASS.mip[ rowDist&lt;<span class="n">2.2</span> ? <span class="n">0</span> : rowDist&lt;<span class="n">5.5</span> ? <span class="n">1</span> : <span class="n">2</span> ];
+const gw=mip.w, gh=mip.h;
+const tex = mip.lv[lvl];</pre></div>
+      <p style="margin-top:10px">Zmienne <code>gw</code>/<code>gh</code> przenieś z góry funkcji do wnętrza pętli po <code>y</code> — teraz zmieniają się z wierszem.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Maskowanie <code>&amp; (gw-1)</code> działa tylko dla potęg dwójki.</strong> 64 → 32 → 16 jest bezpieczne, 128 → 64 → 32 też. Nie skracaj piramidy do nieparzystych rozmiarów.</div>
+      <p style="margin-top:10px">W <code>makeSprite</code> (574) też podmień <code>shadeLevels(grab(c), SPR_LV)</code> na <code>buildTex(grab(c), SPR_LV)</code> i dopisz wybór mipa w <code>drawSprite</code> po <code>sh</code>/<code>sw</code>: <code>const mip = tex.mip[ sh &gt;= tex.h ? 0 : sh &gt;= (tex.h&gt;&gt;1) ? 1 : 2 ]</code>. To właśnie na drzewach różnica jest największa — dziś dalekie korony syczą przy każdym obrocie.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +2,5 KB. RAM +31% (piramida to 1 + ¼ + ¹⁄₁₆). CPU: spodziewaj się <strong>−5 do −12%</strong> na <code>renderMs</code> — to jedyny krok w dokumencie, który oddaje więcej, niż bierze.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Stań w rogu mapy i powoli obracaj myszą. Odległe ściany i korony mają być stabilne. Porównaj <code>renderMs</code> z linią bazową z P0 — powinien spaść.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ A4 ══════════════════ -->
+<div class="step" data-pkg="A" data-acc="a" id="A4">
+  <div class="step-head">
+    <div class="sid">A4</div>
+    <h3>Warianty ścian i mieszane podłoże</h3>
+    <div class="chips"><span class="chip A">Pakiet A</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Każdy kamień na mapie to dziś ten sam bitmap. Trzy warianty na materiał, wybierane haszem ze współrzędnych komórki, likwidują wrażenie tapety. Podłoże dostaje drugą teksturę mieszaną maską niskiej częstotliwości — ścieżki i polany zamiast jednolitego dywanu.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div><code>rebuildArt</code> (858), <code>drawWalls</code> (2016), <code>drawFloor</code> (1985), <code>enterLevel</code> (1023).</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">warianty ścian</div>
+<pre>const VARIANTS = <span class="n">3</span>;
+
+<span class="c">// w rebuildArt — TEX[mat] staje się tablicą wariantów</span>
+TEX = [ null,
+  [<span class="n">0</span>,<span class="n">1</span>,<span class="n">2</span>].map(i =&gt; buildTex(texStone(false,B,i),<span class="n">32</span>)),
+  [<span class="n">0</span>,<span class="n">1</span>,<span class="n">2</span>].map(i =&gt; buildTex(texBark(B,i),<span class="n">32</span>)),
+  [<span class="n">0</span>,<span class="n">1</span>,<span class="n">2</span>].map(i =&gt; buildTex(texStone(true,B,i),<span class="n">32</span>)) ];
+
+<span class="c">// w drawWalls, zamiast `const tex = TEX[hit];`</span>
+<span class="c">// hasz z mapX/mapY jest stały w czasie -&gt; ściana nie miga przy ruchu</span>
+const vh = (Math.imul(mapX,<span class="n">73856093</span>) ^ Math.imul(mapY,<span class="n">19349663</span>))&gt;&gt;&gt;<span class="n">0</span>;
+const tex = TEX[hit][ vh % VARIANTS ];</pre></div></div>
+
+    <div class="field"><span class="lbl"></span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">maska podłoża — prekalkulowana, bo fBm na piksel podłogi jest za drogi</div>
+<pre>let FLOORMASK=null;
+const FM_N = <span class="n">64</span>;
+
+function buildFloorMask(seed){
+  FLOORMASK = new Uint8Array(FM_N*FM_N);
+  for(let y=<span class="n">0</span>;y&lt;FM_N;y++) for(let x=<span class="n">0</span>;x&lt;FM_N;x++)
+    FLOORMASK[y*FM_N+x] = fbm(x/FM_N, y/FM_N, <span class="n">3</span>, seed, <span class="n">2</span>)*<span class="n">255</span>|<span class="n">0</span>;
+}
+<span class="c">// wywołaj w enterLevel, zaraz po applyMap(...)</span>
+
+<span class="c">// w drawFloor, wewnątrz pętli po x — 4 teksele maski na komórkę mapy,</span>
+<span class="c">// czyli jeden kafel maski na 16 komórek</span>
+const texA = mip.lv[lvl], texB = mipB.lv[lvl];
+for(let x=<span class="n">0</span>;x&lt;W;x++){
+  const tx=((fx*gw)|<span class="n">0</span>)&amp;(gw-<span class="n">1</span>), ty=((fy*gh)|<span class="n">0</span>)&amp;(gh-<span class="n">1</span>);
+  const mx=((fx*<span class="n">4</span>)|<span class="n">0</span>)&amp;(FM_N-<span class="n">1</span>), my=((fy*<span class="n">4</span>)|<span class="n">0</span>)&amp;(FM_N-<span class="n">1</span>);
+  <span class="c">// dithering ±16 rozbija twardą krawędź między teksturami</span>
+  const th = <span class="n">128</span> + (((x^y)&amp;<span class="n">1</span>)?<span class="n">16</span>:-<span class="n">16</span>);
+  buf[row+x] = (FLOORMASK[my*FM_N+mx] &gt; th ? texA : texB)[ty*gw+tx];
+  fx+=stepX; fy+=stepY;
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Dane</span><div>Do <code>BIOMES</code> dopisz drugi zestaw kolorów trawy — np. <code>grassC</code>/<code>grassCVar</code> dla wydeptanej ziemi w NOCNYM BORZE, spękanego popiołu w ZGLISZCZACH, szronu na kamieniu w SZRONIE. To ok. 5 linii na biom i to te dane, nie kod, robią tu robotę.</div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Hasz musi zależeć wyłącznie od <code>mapX</code>/<code>mapY</code>.</strong> Jeśli wciągniesz do niego <code>side</code> albo cokolwiek zależnego od kamery, sąsiadujące ściany tej samej bryły dostaną różne warianty i bryła się rozpadnie wizualnie.</div>
+      <p style="margin-top:10px">Wariant <code>i</code> musi realnie zmieniać ziarno w generatorze — w kodzie A2 robi to <code>sd = 7 + variant*911</code>. Jeśli tego nie przekażesz, dostaniesz trzy identyczne tekstury i potrojony RAM za darmo.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +4–6 KB (w tym dane biomów). RAM ściany ×3 → ok. 8,2 MB, podłoże ×2 → 1,4 MB. CPU: +2 mnożenia i 1 odczyt na piksel podłogi, ok. <strong>+15–20% na <code>drawFloor</code></strong>, ściany bez zmian. Czas generacji biomu rośnie trzykrotnie — przy 128² to już ok. 70 ms na przejściu poziomu, warto wtedy pokazać komunikat.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Obejdź dookoła pojedynczy blok kamienia: wszystkie cztery ściany tej samej komórki mają ten sam wariant. Idąc przez otwartą przestrzeń, powinieneś przechodzić przez rozmyte plamy dwóch rodzajów podłoża, bez widocznych prostych granic.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ A5 ══════════════════ -->
+<div class="step" data-pkg="A" data-acc="a" id="A5">
+  <div class="step-head">
+    <div class="sid">A5</div>
+    <h3>Relief z mapy wysokości</h3>
+    <div class="chips"><span class="chip A">Pakiet A</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div><code>hmap</code> z kroku A2 opisuje wypukłość każdego teksela. Gradient tej mapy, zestawiony ze stałym kierunkiem światła, daje wytłoczenie: kora wygląda na rzeźbioną, spoiny muru na wgłębione. W pakiecie A wypalamy je wprost w kolor tekstury — koszt runtime zero. W połączeniu z B1 ta sama tablica staje się reaktywna na światło.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div>Na końcu każdego generatora tekstur, <strong>przed</strong> <code>grab(c)</code> — a więc i przed mipmapami i przed <code>shadeLevels</code>.</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre><span class="c">// gradient mapy wysokości rzutowany na kierunek światła w płaszczyźnie</span>
+<span class="c">// tekstury; lx,ly ~ [-1,1], np. (-0.6,-0.8) = światło z góry-lewej</span>
+function relief(h,N,lx,ly){
+  const out=new Uint8Array(N*N);
+  for(let y=<span class="n">0</span>;y&lt;N;y++) for(let x=<span class="n">0</span>;x&lt;N;x++){
+    const l=h[y*N+((x-<span class="n">1</span>)&amp;(N-<span class="n">1</span>))], r=h[y*N+((x+<span class="n">1</span>)&amp;(N-<span class="n">1</span>))];
+    const u=h[((y-<span class="n">1</span>)&amp;(N-<span class="n">1</span>))*N+x], d=h[((y+<span class="n">1</span>)&amp;(N-<span class="n">1</span>))*N+x];
+    const gx=(r-l)/<span class="n">255</span>, gy=(d-u)/<span class="n">255</span>;
+    out[y*N+x] = clamp(<span class="n">128</span> - (gx*lx+gy*ly)*<span class="n">340</span>, <span class="n">0</span>, <span class="n">255</span>)|<span class="n">0</span>;
+  }
+  return out;
+}
+
+<span class="c">// 128 = neutralnie; siła 0.35 to dobry punkt startowy, 0.6 już przesadza</span>
+function applyRelief(px, ao, N, strength){
+  for(let i=<span class="n">0</span>;i&lt;N*N;i++){
+    const c=px[i];
+    if(((c&gt;&gt;&gt;<span class="n">24</span>)&amp;<span class="n">255</span>)&lt;<span class="n">128</span>) continue;
+    const k = <span class="n">1</span> + (ao[i]/<span class="n">255</span> - <span class="n">0.5</span>)*<span class="n">2</span>*strength;
+    const r=(c&amp;<span class="n">255</span>)*k, g=((c&gt;&gt;&gt;<span class="n">8</span>)&amp;<span class="n">255</span>)*k, b=((c&gt;&gt;&gt;<span class="n">16</span>)&amp;<span class="n">255</span>)*k;
+    px[i] = (<span class="n">255</span>&lt;&lt;<span class="n">24</span>)
+          | ((b&gt;<span class="n">255</span>?<span class="n">255</span>:b|<span class="n">0</span>)&lt;&lt;<span class="n">16</span>)
+          | ((g&gt;<span class="n">255</span>?<span class="n">255</span>:g|<span class="n">0</span>)&lt;&lt;<span class="n">8</span>)
+          |  (r&gt;<span class="n">255</span>?<span class="n">255</span>:r|<span class="n">0</span>);
+  }
+}
+
+<span class="c">// w texBark, tuż przed g.putImageData(im,0,0):</span>
+const ao = relief(hmap, N, -<span class="n">0.6</span>, -<span class="n">0.8</span>);
+applyRelief(px, ao, N, <span class="n">0.35</span>);
+<span class="c">// tex.ao = ao;  &lt;- zachowaj, jeśli robisz też B1</span></pre></div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Kolejność jest krytyczna.</strong> Relief musi trafić w bazową teksturę przed <code>buildTex</code>. Jeśli nałożysz go po zbudowaniu poziomów mgły, przemnożysz też kolor mgły i najdalsze ściany zaczną migotać kontrastem, który powinien już dawno zaniknąć.</div>
+      <p style="margin-top:10px">Mnożnik <code>340</code> w <code>relief</code> dobierz do rozmiaru tekstury: przy 128² gradient między sąsiednimi tekselami jest o połowę mniejszy, więc podnieś go do ok. 600, inaczej wytłoczenie zniknie.</p>
+      <p style="margin-top:10px">Kierunek światła musi być ten sam we wszystkich teksturach, bo inaczej ściany wyglądają jak oświetlone z różnych stron. Jeśli robisz B7, użyj tego samego <code>moonDir</code>.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +3 KB. RAM +25%, jeśli zachowujesz <code>tex.ao</code> na potrzeby B1; bez tego zero. CPU runtime zero.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Ustaw <code>strength</code> chwilowo na 0.8 i sprawdź, czy bruzdy kory mają wyraźnie jasną i ciemną stronę — jeśli obie są jednakowe, gradient liczy się na płaskiej mapie i <code>hmap</code> nie został wypełniony. Potem wróć do 0.35.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ A6 ══════════════════ -->
+<div class="step" data-pkg="A" data-acc="a" id="A6">
+  <div class="step-head">
+    <div class="sid">A6</div>
+    <h3>Sklepienie koron z prześwitami</h3>
+    <div class="chips"><span class="chip A">Pakiet A</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Nad horyzontem jest dziś wyłącznie niebo — w grze o lesie sufit jest pustą przestrzenią. Sklepienie renderowane tą samą matematyką co podłoga, ale z dziurami o zerowej alfie, daje baldachim, przez który prześwituje niebo z <code>makeSky</code>. Ponieważ <code>drawSky</code> biegnie pierwsze, sklepienie po prostu pomija przezroczyste teksele — żadnego blendowania.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div>Nowa funkcja obok <code>drawFloor</code>; wywołanie w <code>render()</code> (1936) między <code>drawSky</code> a <code>drawFloor</code>.</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre>const CEIL_H = <span class="n">2.6</span>;          <span class="c">// wysokość baldachimu w jednostkach mapy</span>
+let CANOPY = null;
+
+function texCanopy(B){
+  const N=TEXN, c=makeCanvas(N,N), g=c.getContext(<span class="k">'2d'</span>);
+  const im=g.createImageData(N,N), px=new Uint32Array(im.data.buffer);
+  const lf=hexRGB(B.grass), dk=B.barkDark;
+  for(let y=<span class="n">0</span>;y&lt;N;y++) for(let x=<span class="n">0</span>;x&lt;N;x++){
+    const u=x/N, v=y/N;
+    const gest = fbm(u,v,<span class="n">4</span>,<span class="n">303</span>,<span class="n">3</span>);      <span class="c">// gęstość listowia</span>
+    if(gest &lt; <span class="n">0.42</span>){ px[y*N+x]=<span class="n">0</span>; continue; }   <span class="c">// prześwit</span>
+    const li = fbm(u,v,<span class="n">16</span>,<span class="n">77</span>,<span class="n">2</span>);        <span class="c">// ziarno pojedynczych liści</span>
+    const k = <span class="n">0.35</span> + li*<span class="n">0.5</span> + (gest-<span class="n">0.42</span>)*<span class="n">0.6</span>;
+    const r=lerp(dk[<span class="n">0</span>],lf[<span class="n">0</span>],k), gg=lerp(dk[<span class="n">1</span>],lf[<span class="n">1</span>],k), b=lerp(dk[<span class="n">2</span>],lf[<span class="n">2</span>],k);
+    px[y*N+x] = (<span class="n">255</span>&lt;&lt;<span class="n">24</span>)|((b|<span class="n">0</span>)&lt;&lt;<span class="n">16</span>)|((gg|<span class="n">0</span>)&lt;&lt;<span class="n">8</span>)|(r|<span class="n">0</span>);
+  }
+  g.putImageData(im,<span class="n">0</span>,<span class="n">0</span>);
+  return grab(c);
+}
+
+function drawCeil(horizon){
+  if(horizon&lt;=<span class="n">0</span>) return;
+  const rdx0=dirX-plX, rdy0=dirY-plY, rdx1=dirX+plX, rdy1=dirY+plY;
+  const posZ = <span class="n">0.5</span>*H*CEIL_H;          <span class="c">// wyżej niż podłoga -&gt; dalszy horyzont</span>
+  const end = Math.min(H-<span class="n">1</span>, horizon);
+  for(let y=<span class="n">0</span>;y&lt;end;y++){
+    const p = horizon-y;                <span class="c">// odbicie względem podłogi</span>
+    const rowDist = posZ/p;
+    if(rowDist &gt; MAXFOG*<span class="n">1.35</span>) continue;  <span class="c">// dalej zostaje samo niebo</span>
+
+    const mip = CANOPY.mip[ rowDist&lt;<span class="n">3</span> ? <span class="n">0</span> : rowDist&lt;<span class="n">7</span> ? <span class="n">1</span> : <span class="n">2</span> ];
+    const cw=mip.w, ch=mip.h;
+    let lvl = clamp((rowDist/MAXFOG*<span class="n">31</span>)|<span class="n">0</span>, <span class="n">0</span>, <span class="n">31</span>);
+    const tex = mip.lv[lvl];
+
+    const stepX=rowDist*(rdx1-rdx0)/W, stepY=rowDist*(rdy1-rdy0)/W;
+    let fx=P.x+rowDist*rdx0, fy=P.y+rowDist*rdy0;
+    const row=y*W;
+    for(let x=<span class="n">0</span>;x&lt;W;x++){
+      const c = tex[(((fy*ch)|<span class="n">0</span>)&amp;(ch-<span class="n">1</span>))*cw + (((fx*cw)|<span class="n">0</span>)&amp;(cw-<span class="n">1</span>))];
+      if(c) buf[row+x]=c;               <span class="c">// 0 = prześwit, zostaw niebo</span>
+      fx+=stepX; fy+=stepY;
+    }
+  }
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Podłączenie</span><div>W <code>rebuildArt</code>: <code>CANOPY = buildTex(texCanopy(B),32);</code>. W <code>render()</code>: <code>drawSky(ang,horizon); drawCeil(horizon); drawFloor(horizon);</code></div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>To podwaja koszt rzutowania płaszczyzn.</strong> <code>drawFloor</code> to dziś największy pojedynczy wydatek w renderze; <code>drawCeil</code> dokłada drugą taką pętlę. Zmierz <code>renderMs</code> natychmiast po podłączeniu — jeśli przy 640×360 wyjdziesz poza 16 ms, podnieś próg odcięcia z <code>MAXFOG*1.35</code> na <code>MAXFOG*0.9</code>; górne partie sklepienia i tak toną we mgle.</div>
+      <p style="margin-top:10px"><code>shadeLevels</code> zeruje teksele o alfie &lt; 128, więc prześwity przetrwają budowę poziomów mgły. Ale <code>downsample</code> z A3 musi mieć próg „2 z 4", inaczej po dwóch mipach baldachim zrobi się dziurawy jak sito.</p>
+      <p style="margin-top:10px">W biomie ZGLISZCZA baldachim powinien być rzadszy (próg <code>gest &lt; 0.62</code>) — spalony las z gęstym listowiem nie ma sensu. To jedna liczba w <code>BIOMES</code>.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +3 KB. RAM +0,7 MB. CPU <strong>+35–60% na całym renderze</strong> — najdroższy krok w pakiecie A.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Spójrz w górę (mysz do tyłu): nad głową ma być listowie z nieregularnymi dziurami, w których widać gwiazdy i księżyc. Idąc do przodu, prześwity powinny przesuwać się względem ciebie wolniej niż podłoga — to efekt <code>CEIL_H</code> i dowód, że sklepienie jest wyżej.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B1 ══════════════════ -->
+<div class="step" data-pkg="B" data-acc="b" id="B1">
+  <div class="step-head">
+    <div class="sid">B1</div>
+    <h3>Oświetlenie liczone zamiast samej mgły</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Fundament całej reszty pakietu B. Zostawiamy jednowymiarowy LUT mgły — jest dobry i kosztuje jeden odczyt — a światło dokładamy jako mnożenie RGB po wyjściu z LUT. Cały sekret wydajności: <strong>mnożnik liczy się raz na kolumnę (ściany), raz na 8 pikseli (podłoga) i raz na sprite</strong>, nigdy na piksel. To 2 500 wyliczeń światła na klatkę zamiast 130 000.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div><code>drawWalls</code> (2016), <code>drawFloor</code> (1985), <code>drawSprite</code> (2067).</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">nowa pętla wewnętrzna ścian — mnożnik stały dla całej kolumny</div>
+<pre><span class="c">// lr,lg,lb w skali 256 = 1.0. Wyliczone RAZ, przed pętlą po y.</span>
+let lr=<span class="n">256</span>, lg=<span class="n">256</span>, lb=<span class="n">256</span>;
+lightAt(mapX+<span class="n">0.5</span>, mapY+<span class="n">0.5</span>, LT);        <span class="c">// z B2/B4</span>
+
+<span class="c">// ⚠ mgła musi tłumić światło, patrz Pułapki</span>
+const fogK = <span class="n">1</span> - lvl/<span class="n">31</span>;
+lr = <span class="n">256</span> + (LT[<span class="n">0</span>]*<span class="n">256</span> - <span class="n">256</span>)*fogK | <span class="n">0</span>;
+lg = <span class="n">256</span> + (LT[<span class="n">1</span>]*<span class="n">256</span> - <span class="n">256</span>)*fogK | <span class="n">0</span>;
+lb = <span class="n">256</span> + (LT[<span class="n">2</span>]*<span class="n">256</span> - <span class="n">256</span>)*fogK | <span class="n">0</span>;
+
+for(let y=drawY0;y&lt;=drawY1;y++){
+  const ty = ((texPos|<span class="n">0</span>) &amp; (th-<span class="n">1</span>));
+  texPos += stepT;
+  const c = t[ty*tw+tx];
+  const r = ((c    &amp;<span class="n">255</span>)*lr)&gt;&gt;<span class="n">8</span>;
+  const g = ((c&gt;&gt;&gt;<span class="n">8</span> &amp;<span class="n">255</span>)*lg)&gt;&gt;<span class="n">8</span>;
+  const b = ((c&gt;&gt;&gt;<span class="n">16</span>&amp;<span class="n">255</span>)*lb)&gt;&gt;<span class="n">8</span>;
+  buf[y*W+x] = <span class="n">0xFF000000</span>
+    | ((b&gt;<span class="n">255</span>?<span class="n">255</span>:b)&lt;&lt;<span class="n">16</span>)
+    | ((g&gt;<span class="n">255</span>?<span class="n">255</span>:g)&lt;&lt;<span class="n">8</span>)
+    |  (r&gt;<span class="n">255</span>?<span class="n">255</span>:r);
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Sprzątanie</span><div>Usuń trzy hacki globalnego rozbłysku: <code>lvl -= flashLight*0.6|0</code> (2003), <code>lvl -= flashLight|0</code> (2052), <code>lvl -= (flashLight*0.5)|0</code> (2087). Zastępuje je prawdziwe światło pozycyjne z B4. Sama zmienna <code>flashLight</code> i jej wygaszanie w <code>update</code> (1430) mogą zostać — przyda się dla podłogi, jeśli kiedyś zejdziesz na B1★.</div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Bez <code>fogK</code> mgła zaczyna świecić.</strong> <code>shadeLevels</code> wpala kolor mgły w teksel, więc mnożąc już zamglony piksel przez rozbłysk wystrzału rozjaśniasz mgłę — las dwadzieścia metrów dalej błyska razem ze strzelbą. Tłumienie mnożnika tym samym współczynnikiem, którym zanika tekstura, rozwiązuje to jedną linią i zero kosztem, bo liczy się raz na kolumnę.</div>
+      <p style="margin-top:10px">Przesunięcie <code>&gt;&gt;8</code> zamiast dzielenia przez 256 wymaga, by <code>lr</code> było całkowite i nieujemne. Przy silnym świetle wartości przekraczają 255, stąd trzy porównania na końcu — nie da się ich pominąć, bo bez nich kanał się zawija i jasne miejsca robią się czarne.</p>
+      <p style="margin-top:10px">W <code>drawFloor</code> światło zmienia się wzdłuż wiersza. Nie wołaj <code>lightAt</code> na piksel — próbkuj co 8 pikseli i interpoluj liniowo <code>lr</code>/<code>lg</code>/<code>lb</code> przyrostowo. Wiersze podłogi są spójne, różnica jest niewidoczna.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +3 KB. RAM zero. CPU: ściany <strong>+25%</strong>, podłoga <strong>+30%</strong>, sprite'y <strong>+40%</strong> na własnych pętlach. Na całym renderze ok. +30%.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Zanim wpiąć B2, zaślep <code>lightAt</code> stałą <code>[1,1,1]</code>. Obraz musi wyglądać <em>identycznie</em> jak przed zmianą — jeśli jest choćby minimalnie jaśniejszy lub ciemniejszy, pomyliłeś skalę 256 i wszystkie późniejsze regulacje światła będą walczyć z tym błędem.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B1★ ══════════════════ -->
+<div class="step" data-pkg="M" data-acc="b" id="B1s">
+  <div class="step-head">
+    <div class="sid">B1★</div>
+    <h3>Oświetlenie liczone — wersja lekka</h3>
+    <div class="chips"><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>To samo co B1, ale mnożenie wchodzi wyłącznie tam, gdzie jest tanie i najbardziej widoczne: na ściany (raz na kolumnę) i sprite'y (raz na sprite). Podłoga — najliczniejsza grupa pikseli — zostaje na niezmienionym LUT mgły. Dzięki temu B3 staje się zbędne, a koszt CPU spada o dwie trzecie względem pełnego B1.</div></div>
+
+    <div class="field"><span class="lbl">Zakres</span><div>
+      <ul class="tight">
+        <li>Wdróż kod B1 <strong>tylko</strong> w <code>drawWalls</code> i <code>drawSprite</code>.</li>
+        <li><code>drawFloor</code> zostaw bez jednej zmiany, łącznie z <code>lvl -= flashLight*0.6|0</code>.</li>
+        <li>Usuń hacki <code>flashLight</code> z <code>drawWalls</code> i <code>drawSprite</code>, zostaw ten w <code>drawFloor</code>.</li>
+        <li>Pomiń B3 — nie ma czego próbkować dwuliniowo.</li>
+      </ul>
+    </div></div>
+
+    <div class="field"><span class="lbl">Czym płacisz</span><div>Podłoga nie reaguje na światła pozycyjne. W praktyce widać to w jednej sytuacji: strzał w otwartej przestrzeni rozświetla ściany i drzewa, a trawa pod nogami tylko globalnie. Ponieważ globalne rozjaśnienie z <code>flashLight</code> zostaje, efekt jest spójny i nikt tego nie zauważa bez porównania obok siebie. Statyczna lightmapa z B2 też nie dotknie podłogi — w gęstym lesie, gdzie różnice jasności między polaną a gąszczem niesie głównie geometria ścian i koron, to strata akceptowalna.</div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +2 KB. CPU <strong>+10–14%</strong> zamiast +30%.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Ten sam co w B1: zaślepienie <code>lightAt</code> stałą musi dawać obraz nieodróżnialny od wyjściowego.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B2 ══════════════════ -->
+<div class="step" data-pkg="B M" data-acc="b" id="B2">
+  <div class="step-head">
+    <div class="sid">B2</div>
+    <h3>Statyczna lightmapa poziomu</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Największy pojedynczy skok klimatu w całym dokumencie. Dziś cała mapa jest oświetlona równomiernie, a jedynym zróżnicowaniem jest odległość. Lightmapa liczona raz przy wejściu na poziom daje ciemne gąszcze i jasne polany: otwarte komórki łapią światło nieba, ciasne korytarze między drzewami toną w mroku. Do tego garść statycznych źródeł — ogniska w ZGLISZCZACH, świecące grzyby w GRZYBNI.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div>Nowy blok obok <code>buildMap</code>; wywołanie w <code>enterLevel</code> (1023) po <code>applyMap(...)</code>, przed <code>rebuildArt(biome)</code>.</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">1/2 — budowa mapy światła</div>
+<pre>let LM=null;                       <span class="c">// Float32Array, 3 kanały na komórkę, 1.0 = neutralnie</span>
+const LT=[<span class="n">0</span>,<span class="n">0</span>,<span class="n">0</span>];                  <span class="c">// bufor roboczy, żeby nie alokować w pętli</span>
+
+function buildLightmap(B, seed){
+  LM = new Float32Array(MW*MH*<span class="n">3</span>);
+  const rnd = mulberry32(seed);
+
+  <span class="c">// 1. otwartość: ile nieba widzi komórka. Ważone jądro 7×7 to tania,</span>
+  <span class="c">//    ale zaskakująco przekonująca aproksymacja sky occlusion.</span>
+  const amb=new Float32Array(MW*MH);
+  for(let y=<span class="n">0</span>;y&lt;MH;y++) for(let x=<span class="n">0</span>;x&lt;MW;x++){
+    if(cell(x,y)!==<span class="n">0</span>) continue;
+    let open=<span class="n">0</span>, tot=<span class="n">0</span>;
+    for(let dy=-<span class="n">3</span>;dy&lt;=<span class="n">3</span>;dy++) for(let dx=-<span class="n">3</span>;dx&lt;=<span class="n">3</span>;dx++){
+      const w=<span class="n">1</span>/(<span class="n">1</span>+dx*dx+dy*dy);
+      tot+=w; if(cell(x+dx,y+dy)===<span class="n">0</span>) open+=w;
+    }
+    amb[y*MW+x]=open/tot;
+  }
+
+  <span class="c">// 2. wpisz ambient nieba — kolor bierzemy z biomu, siłę z otwartości</span>
+  const A=B.ambient, lo=B.ambientMin;
+  for(let i=<span class="n">0</span>;i&lt;MW*MH;i++){
+    const k = lo + (<span class="n">1</span>-lo)*amb[i];
+    LM[i*<span class="n">3</span>]=A[<span class="n">0</span>]*k; LM[i*<span class="n">3</span>+<span class="n">1</span>]=A[<span class="n">1</span>]*k; LM[i*<span class="n">3</span>+<span class="n">2</span>]=A[<span class="n">2</span>]*k;
+  }
+
+  <span class="c">// 3. źródła statyczne w losowych otwartych komórkach</span>
+  for(let i=<span class="n">0</span>,put=<span class="n">0</span>; i&lt;<span class="n">400</span> &amp;&amp; put&lt;B.lights; i++){
+    const x=<span class="n">1</span>+(rnd()*(MW-<span class="n">2</span>)|<span class="n">0</span>), y=<span class="n">1</span>+(rnd()*(MH-<span class="n">2</span>)|<span class="n">0</span>);
+    if(cell(x,y)!==<span class="n">0</span>) continue;
+    if(amb[y*MW+x] &gt; <span class="n">0.75</span>) continue;     <span class="c">// światła mają sens w gąszczu, nie na polanie</span>
+    addStaticLight(x+<span class="n">0.5</span>, y+<span class="n">0.5</span>, B.lightCol, B.lightRad);
+    put++;
+  }
+}
+
+function addStaticLight(lx,ly,col,rad){
+  const x0=Math.max(<span class="n">0</span>,(lx-rad)|<span class="n">0</span>), x1=Math.min(MW-<span class="n">1</span>,(lx+rad)|<span class="n">0</span>);
+  const y0=Math.max(<span class="n">0</span>,(ly-rad)|<span class="n">0</span>), y1=Math.min(MH-<span class="n">1</span>,(ly+rad)|<span class="n">0</span>);
+  for(let cy=y0;cy&lt;=y1;cy++) for(let cx=x0;cx&lt;=x1;cx++){
+    if(cell(cx,cy)!==<span class="n">0</span>) continue;
+    const d=Math.hypot(cx+<span class="n">0.5</span>-lx, cy+<span class="n">0.5</span>-ly);
+    if(d&gt;rad) continue;
+    if(!losClear(lx,ly,cx+<span class="n">0.5</span>,cy+<span class="n">0.5</span>)) continue;   <span class="c">// istnieje już, linia 1674</span>
+    const f=(<span class="n">1</span>-d/rad)*(<span class="n">1</span>-d/rad);
+    const i=(cy*MW+cx)*<span class="n">3</span>;
+    LM[i]+=col[<span class="n">0</span>]*f; LM[i+<span class="n">1</span>]+=col[<span class="n">1</span>]*f; LM[i+<span class="n">2</span>]+=col[<span class="n">2</span>]*f;
+  }
+}</pre></div></div>
+
+    <div class="field"><span class="lbl"></span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+      <div class="codecap">2/2 — odczyt; to jest funkcja, którą woła B1</div>
+<pre>function lightAt(px,py,out){
+  const cx=px|<span class="n">0</span>, cy=py|<span class="n">0</span>;
+  if(cx&lt;<span class="n">0</span>||cy&lt;<span class="n">0</span>||cx&gt;=MW||cy&gt;=MH){ out[<span class="n">0</span>]=out[<span class="n">1</span>]=out[<span class="n">2</span>]=<span class="n">1</span>; return; }
+  const i=(cy*MW+cx)*<span class="n">3</span>;
+  out[<span class="n">0</span>]=LM[i]; out[<span class="n">1</span>]=LM[i+<span class="n">1</span>]; out[<span class="n">2</span>]=LM[i+<span class="n">2</span>];
+  <span class="c">// tu dopisze się pętla po światłach dynamicznych — patrz B4</span>
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Dane</span><div>Cztery nowe pola w każdym wpisie <code>BIOMES</code>. To one nadają charakter, więc warto je dobrać ręcznie, a nie wyliczać z <code>fog</code>:
+      <div class="codewrap" style="margin-top:10px"><button class="copy" type="button">kopiuj</button>
+<pre><span class="c">// NOCNY BÓR — zimny księżyc, bez źródeł własnych</span>
+ambient:[<span class="n">0.82</span>,<span class="n">0.90</span>,<span class="n">1.08</span>], ambientMin:<span class="n">0.42</span>, lights:<span class="n">0</span>,  lightCol:[<span class="n">0</span>,<span class="n">0</span>,<span class="n">0</span>],           lightRad:<span class="n">0</span>,
+<span class="c">// TRZĘSAWISKO — chorobliwa zieleń, błędne ogniki</span>
+ambient:[<span class="n">0.78</span>,<span class="n">0.95</span>,<span class="n">0.84</span>], ambientMin:<span class="n">0.34</span>, lights:<span class="n">7</span>,  lightCol:[<span class="n">0.15</span>,<span class="n">0.55</span>,<span class="n">0.30</span>], lightRad:<span class="n">3.5</span>,
+<span class="c">// ZGLISZCZA — dogasające ogniska, ciepło od dołu</span>
+ambient:[<span class="n">1.02</span>,<span class="n">0.84</span>,<span class="n">0.72</span>], ambientMin:<span class="n">0.30</span>, lights:<span class="n">12</span>, lightCol:[<span class="n">0.95</span>,<span class="n">0.42</span>,<span class="n">0.12</span>], lightRad:<span class="n">4.5</span>,
+<span class="c">// SZRON — wysoki ambient, prawie brak mroku, śnieg odbija</span>
+ambient:[<span class="n">0.90</span>,<span class="n">0.98</span>,<span class="n">1.15</span>], ambientMin:<span class="n">0.58</span>, lights:<span class="n">0</span>,  lightCol:[<span class="n">0</span>,<span class="n">0</span>,<span class="n">0</span>],           lightRad:<span class="n">0</span>,
+<span class="c">// GRZYBNIA — czarno, ale gęsto od świecących kapeluszy</span>
+ambient:[<span class="n">0.62</span>,<span class="n">0.55</span>,<span class="n">0.80</span>], ambientMin:<span class="n">0.18</span>, lights:<span class="n">20</span>, lightCol:[<span class="n">0.70</span>,<span class="n">0.25</span>,<span class="n">0.95</span>], lightRad:<span class="n">3.0</span>,</pre></div>
+    </div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong><code>ambientMin</code> to regulator grywalności, nie estetyki.</strong> Poniżej ok. 0.15 drzewa w gąszczu przestają być widoczne, zanim zaczną cię bić — a to jest gra o reagowaniu na to, co nadchodzi. Zejdź niżej tylko tam, gdzie dokładasz własne źródła światła, jak w GRZYBNI.</div>
+      <p style="margin-top:10px">Lightmapa jest per komórka, więc granice są schodkowe. W pakiecie B łata to B3 (próbkowanie dwuliniowe podłogi); na ścianach schodki są niewidoczne, bo cała ściana to jedna komórka. W mieszance, bez B3, dodaj po kroku 2 jedno rozmycie 3×3 po <code>LM</code> — cztery linie, znika 90% problemu.</p>
+      <p style="margin-top:10px">Koszt budowy: jądro 7×7 na komórkę to ok. 50 tys. testów przy mapie 38×38 — poniżej milisekundy. <code>losClear</code> dla 20 świateł o promieniu 3 to ok. 1 800 wywołań, też pomijalne. Nie ma potrzeby tego optymalizować.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +5–7 KB (z danymi biomów). RAM: <code>38·38·3·4 B</code> ≈ 17 KB, czyli nic. CPU w renderze zero ponad to, co już płacisz w B1 — <code>lightAt</code> to trzy odczyty z tablicy.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Wejdź na poziom 5 (GRZYBNIA) i przejdź z otwartej przestrzeni w gąszcz drzew. Jasność ma spadać płynnie i wyraźnie, a fioletowe źródła mają tworzyć czytelne kałuże światła z ostrymi granicami tam, gdzie zasłania je ściana — to sprawdzian, że <code>losClear</code> faktycznie odcina.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B3 ══════════════════ -->
+<div class="step" data-pkg="B" data-acc="b" id="B3">
+  <div class="step-head">
+    <div class="sid">B3</div>
+    <h3>Dwuliniowa lightmapa na podłodze</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Bez tego podłoga dostaje światło skokami co komórkę i widać na niej szachownicę. Próbkowanie dwuliniowe wygładza przejścia — ale liczone na piksel byłoby najdroższą rzeczą w renderze, więc próbkujemy co 8 pikseli i interpolujemy przyrostowo.</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre>function lightBilinear(px,py,out){
+  const x=px-<span class="n">0.5</span>, y=py-<span class="n">0.5</span>;
+  const x0=Math.floor(x), y0=Math.floor(y);
+  const tx=x-x0, ty=y-y0;
+  const ix=(a,b)=&gt;((b&lt;<span class="n">0</span>?<span class="n">0</span>:b&gt;=MH?MH-<span class="n">1</span>:b)*MW+(a&lt;<span class="n">0</span>?<span class="n">0</span>:a&gt;=MW?MW-<span class="n">1</span>:a))*<span class="n">3</span>;
+  const i00=ix(x0,y0), i10=ix(x0+<span class="n">1</span>,y0), i01=ix(x0,y0+<span class="n">1</span>), i11=ix(x0+<span class="n">1</span>,y0+<span class="n">1</span>);
+  for(let k=<span class="n">0</span>;k&lt;<span class="n">3</span>;k++)
+    out[k]=lerp(lerp(LM[i00+k],LM[i10+k],tx), lerp(LM[i01+k],LM[i11+k],tx), ty);
+  addDynamic(px,py,out);        <span class="c">// z B4</span>
+}
+
+<span class="c">// w drawFloor, wewnątrz pętli po wierszu:</span>
+const SEG=<span class="n">8</span>;
+lightBilinear(fx,fy,LT);
+let cr=LT[<span class="n">0</span>], cg=LT[<span class="n">1</span>], cb=LT[<span class="n">2</span>], dr=<span class="n">0</span>, dg=<span class="n">0</span>, db=<span class="n">0</span>;
+for(let x=<span class="n">0</span>;x&lt;W;x++){
+  if((x&amp;(SEG-<span class="n">1</span>))===<span class="n">0</span>){
+    <span class="c">// próbka na końcu następnego odcinka, przyrosty na 8 kroków</span>
+    lightBilinear(fx+stepX*SEG, fy+stepY*SEG, LT);
+    dr=(LT[<span class="n">0</span>]-cr)/SEG; dg=(LT[<span class="n">1</span>]-cg)/SEG; db=(LT[<span class="n">2</span>]-cb)/SEG;
+  }
+  const lr=<span class="n">256</span>+(cr*<span class="n">256</span>-<span class="n">256</span>)*fogK|<span class="n">0</span>;
+  <span class="c">// ... mnożenie jak w B1 ...</span>
+  cr+=dr; cg+=dg; cb+=db;
+  fx+=stepX; fy+=stepY;
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <p>Interpolacja przyrostowa kumuluje błąd zmiennoprzecinkowy przez 480 kroków. Przy <code>Float64</code> JS-a jest to nieistotne, ale nie kuś losu ze <code>SEG=32</code> — poza spójnością wizualną stracisz też reaktywność na małe źródła światła, które zmieszczą się w całości między próbkami.</p>
+      <p style="margin-top:10px">Trzy mnożenia <code>*256</code> na segment można wyeliminować, trzymając <code>LM</code> od razu w skali 256 jako <code>Int32Array</code>. Warto, jeśli pomiar pokaże, że <code>drawFloor</code> jest wąskim gardłem.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +2 KB. CPU +10% na <code>drawFloor</code> ponad koszt samego B1.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Stań na granicy polany i gąszczu, patrząc w dół. Przejście jasności ma być gładkie; jeśli widzisz kwadraty wielkości komórki mapy, <code>lightBilinear</code> nie jest wołane albo <code>SEG</code> jest za duże.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B4 ══════════════════ -->
+<div class="step" data-pkg="B M" data-acc="b" id="B4">
+  <div class="step-head">
+    <div class="sid">B4</div>
+    <h3>Światła dynamiczne</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Wystrzał ze strzelby przestaje być globalnym rozjaśnieniem ekranu i staje się światłem stojącym w miejscu gracza: ściana przed tobą błyska, ta za plecami nie. Lecące szyszki niosą własną poświatę, wybuchy rozpalają otoczenie. To krok, który najmocniej widać w ruchu.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div>Nowa lista obok <code>parts</code>; wygaszanie w <code>update</code> (1358); źródła w <code>fire</code> (1710), <code>explode</code> (1853) i przy aktualizacji <code>shots</code> (1547).</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre>const DL=[];                        <span class="c">// światła dynamiczne, max MAXDL</span>
+const MAXDL=<span class="n">10</span>;
+
+function addLight(x,y,col,rad,life){
+  if(DL.length&gt;=MAXDL) DL.shift();  <span class="c">// najstarsze wypada; przy 10 nikt nie zauważy</span>
+  DL.push({x,y,c:col,rad,t:life,life});
+}
+
+<span class="c">// w update(dt), obok wygaszania cząstek:</span>
+for(let i=DL.length-<span class="n">1</span>;i&gt;=<span class="n">0</span>;i--){
+  DL[i].t-=dt;
+  if(DL[i].t&lt;=<span class="n">0</span>) DL.splice(i,<span class="n">1</span>);
+}
+<span class="c">// lecące szyszki świecą przez cały lot — odświeżamy pozycję co klatkę</span>
+for(const s of shots) addLight(s.x, s.y, [<span class="n">0.55</span>,<span class="n">0.30</span>,<span class="n">0.08</span>], <span class="n">2.6</span>, dt*<span class="n">1.05</span>);
+
+<span class="c">// dopisz na końcu lightAt() z B2:</span>
+function addDynamic(px,py,out){
+  for(let i=<span class="n">0</span>;i&lt;DL.length;i++){
+    const L=DL[i];
+    const dx=px-L.x, dy=py-L.y, d2=dx*dx+dy*dy;
+    if(d2 &gt; L.rad*L.rad) continue;
+    const f=<span class="n">1</span>-Math.sqrt(d2)/L.rad;
+    const k=f*f*(L.t/L.life);       <span class="c">// kwadratowy spadek + wygasanie w czasie</span>
+    out[<span class="n">0</span>]+=L.c[<span class="n">0</span>]*k; out[<span class="n">1</span>]+=L.c[<span class="n">1</span>]*k; out[<span class="n">2</span>]+=L.c[<span class="n">2</span>]*k;
+  }
+}</pre></div></div>
+
+    <div class="field"><span class="lbl">Źródła</span><div>
+      <div class="codewrap"><button class="copy" type="button">kopiuj</button>
+<pre><span class="c">// fire(), linia 1766 — zamiast flashLight=Math.max(flashLight,9)</span>
+if(P.w===<span class="n">1</span>){ SFX.shotgun(); addLight(P.x,P.y,[<span class="n">1.60</span>,<span class="n">1.15</span>,<span class="n">0.50</span>],<span class="n">6.5</span>,<span class="n">0.085</span>); ... }
+else       { SFX.chain();   addLight(P.x,P.y,[<span class="n">1.10</span>,<span class="n">0.80</span>,<span class="n">0.35</span>],<span class="n">4.5</span>,<span class="n">0.055</span>); ... }
+
+<span class="c">// explode(), linia 1856 — zamiast flashLight=Math.max(flashLight,10)</span>
+addLight(e.x, e.y, [<span class="n">1.90</span>,<span class="n">0.85</span>,<span class="n">0.28</span>], <span class="n">7.5</span>, <span class="n">0.38</span>);
+
+<span class="c">// fire() miotacza, linia 1727 — zamiast flashLight=Math.max(flashLight,3.5)</span>
+addLight(P.x,P.y,[<span class="n">1.20</span>,<span class="n">0.55</span>,<span class="n">0.15</span>],<span class="n">3.5</span>,<span class="n">0.07</span>);</pre></div>
+    </div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>To jest miejsce, w którym umiera budżet klatki, jeśli policzysz światło na piksel.</strong> Przy 10 światłach <code>addDynamic</code> to ok. 80 operacji. Razy 130 000 pikseli daje 10 mln operacji na klatkę — nie do utrzymania. Razy 480 kolumn plus 16 próbek na wiersz podłogi daje 200 tys. — bez znaczenia. Trzymaj się granulacji z B1 i ten krok jest praktycznie darmowy.</div>
+      <p style="margin-top:10px">Światła szyszek dopisują się co klatkę z <code>life = dt*1.05</code>, więc gasną same, jeśli pocisk zniknie. Ale przy trzech lecących szyszkach i serii ze strzelby lista potrafi przepełnić <code>MAXDL</code> i <code>shift()</code> wyrzuci błysk wystrzału. Jeśli to widać, dodaj priorytet: sortuj przed obcięciem po <code>rad*t</code> i wyrzucaj najsłabsze zamiast najstarszych.</p>
+      <p style="margin-top:10px">Światła nie sprawdzają widoczności — nie ma tu <code>losClear</code>. Świecąca szyszka za rogiem podświetli ścianę, na którą nie ma linii wzroku. W gęstym lesie o krótkich dystansach jest to niezauważalne, a test widoczności na źródło i kolumnę wywróciłby koszt.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +4 KB. RAM zero. CPU +5–8% przy typowych 2–4 aktywnych światłach, do +15% w szczycie.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Stań plecami do ściany, twarzą do otwartej przestrzeni, i strzel ze strzelby. Ściana <em>za</em> tobą nie ma prawa się rozjaśnić — jeśli się rozjaśnia, gdzieś został stary hack <code>flashLight</code>.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B5 ══════════════════ -->
+<div class="step" data-pkg="B M" data-acc="b" id="B5">
+  <div class="step-head">
+    <div class="sid">B5</div>
+    <h3>Kolor światła</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Najlepszy przelicznik efektu do kosztu w całym dokumencie. Skoro B1 mnoży trzy kanały osobno, kolorowe światło nie kosztuje ani jednej dodatkowej operacji — to wyłącznie kwestia tego, jakie liczby wstawisz w <code>ambient</code> i <code>lightCol</code>. Pomarańczowy błysk strzelby na zimnej niebieskiej korze robi więcej dla obrazu niż podwojenie rozdzielczości tekstur.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div>Wyłącznie dane: tabele w kroku B2 i kolory źródeł w B4. Zero zmian w pętlach.</div></div>
+
+    <div class="field"><span class="lbl">Zasady</span><div>
+      <ul class="tight">
+        <li><strong>Ambient i źródła mają być w opozycji.</strong> Zimny ambient, ciepłe źródła — albo odwrotnie. Jeśli oba są w tej samej temperaturze, dostaniesz jaśniejszy obraz zamiast obrazu z rzeźbą.</li>
+        <li><strong>Suma kanałów ambientu ≈ 2.8.</strong> Tak długo, jak trzymasz się tej sumy, zmiana barwy nie zmienia ekspozycji i nie musisz po każdej korekcie przestawiać <code>ambientMin</code>.</li>
+        <li><strong>Źródła mogą przekraczać 1.0.</strong> Błysk strzelby ma <code>1.60</code> na kanale czerwonym — clamp w B1 obetnie go do bieli w epicentrum, co jest dokładnie tym, czego chcesz od lufy.</li>
+        <li><strong>Nie przebarwiaj znajdziek.</strong> W <code>buildSprites</code> celowo pomijają <code>treeTint</code>; światło przebarwi je mimo to. Jeśli apteczka przestaje być czytelna w GRZYBNI, daj sprite'om znajdziek mnożnik ściągnięty ku szarości: <code>lr = 256 + (lr-256)*0.35</code>.</li>
+      </ul>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +1 KB, w całości dane. CPU zero. RAM zero.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Przejdź wszystkie pięć biomów i zrób zrzut z tego samego miejsca. Każdy powinien mieć rozpoznawalną dominantę barwną — jeśli dwa wyglądają podobnie, ambienty są za blisko siebie.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B7 ══════════════════ -->
+<div class="step" data-pkg="B M" data-acc="b" id="B7">
+  <div class="step-head">
+    <div class="sid">B7</div>
+    <h3>Kierunkowe światło księżyca</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Dziś jedynym rozróżnieniem orientacji ściany jest <code>if(side===1) lvl+=4</code> — dwa stopnie jasności na cztery możliwe kierunki. Rozbicie na pełne cztery, z siłą zależną od kierunku księżyca w danym biomie, sprawia, że bryły w końcu czyta się jako bryły. Koszt: jeden odczyt z czteroelementowej tablicy na kolumnę.</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre>const FACE_N=[[<span class="n">1</span>,<span class="n">0</span>],[-<span class="n">1</span>,<span class="n">0</span>],[<span class="n">0</span>,<span class="n">1</span>],[<span class="n">0</span>,-<span class="n">1</span>]];
+let faceK=new Float32Array([<span class="n">1</span>,<span class="n">1</span>,<span class="n">1</span>,<span class="n">1</span>]);
+
+<span class="c">// wywołaj raz w rebuildArt(B)</span>
+function updateFaceLight(B){
+  for(let i=<span class="n">0</span>;i&lt;<span class="n">4</span>;i++){
+    const d = FACE_N[i][<span class="n">0</span>]*B.moonDir[<span class="n">0</span>] + FACE_N[i][<span class="n">1</span>]*B.moonDir[<span class="n">1</span>];
+    faceK[i] = <span class="n">1</span> + d*B.moonStr;
+  }
+}
+
+<span class="c">// w drawWalls, po ustaleniu side — zastępuje `if(side===1) lvl+=4;`</span>
+<span class="c">// 0:+X  1:-X  2:+Y  3:-Y — normalna ściany wskazuje NA gracza,</span>
+<span class="c">// czyli przeciwnie do kierunku promienia</span>
+const face = side===<span class="n">0</span> ? (rdx&gt;<span class="n">0</span> ? <span class="n">1</span> : <span class="n">0</span>) : (rdy&gt;<span class="n">0</span> ? <span class="n">3</span> : <span class="n">2</span>);
+lr = (lr*faceK[face])|<span class="n">0</span>;
+lg = (lg*faceK[face])|<span class="n">0</span>;
+lb = (lb*faceK[face])|<span class="n">0</span>;</pre></div></div>
+
+    <div class="field"><span class="lbl">Wersja bez B1</span><div>Jeśli nie robisz pakietu B, ten sam efekt daje się uzyskać na czystym LUT, zerowym kosztem — to najtańszy pojedynczy wpis w całym dokumencie:
+      <div class="codewrap" style="margin-top:10px"><button class="copy" type="button">kopiuj</button>
+<pre>const FACE_LVL=[-<span class="n">2</span>,<span class="n">3</span>,<span class="n">0</span>,<span class="n">5</span>];       <span class="c">// zamiast if(side===1) lvl+=4</span>
+lvl += FACE_LVL[face];</pre></div>
+    </div></div>
+
+    <div class="field"><span class="lbl">Dane</span><div>Po dwa pola na biom. <code>moonDir</code> znormalizuj, inaczej siła będzie różna między biomami:
+      <div class="codewrap" style="margin-top:10px"><button class="copy" type="button">kopiuj</button>
+<pre>NOCNY BÓR:   moonDir:[-<span class="n">0.71</span>,-<span class="n">0.71</span>], moonStr:<span class="n">0.26</span>   <span class="c">// wysoki księżyc, wyraźny</span>
+TRZĘSAWISKO: moonDir:[ <span class="n">0.38</span>,-<span class="n">0.92</span>], moonStr:<span class="n">0.10</span>   <span class="c">// mgła rozprasza, prawie płasko</span>
+ZGLISZCZA:   moonDir:[ <span class="n">0.00</span>, <span class="n">1.00</span>], moonStr:<span class="n">0.20</span>   <span class="c">// łuna pożaru od jednej strony</span>
+SZRON:       moonDir:[-<span class="n">0.92</span>,-<span class="n">0.38</span>], moonStr:<span class="n">0.34</span>   <span class="c">// najostrzejsze, śnieg odbija</span>
+GRZYBNIA:    moonDir:[ <span class="n">0.00</span>,-<span class="n">1.00</span>], moonStr:<span class="n">0.06</span>   <span class="c">// brak nieba, rządzą źródła własne</span></pre></div>
+    </div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Kierunek <code>moonDir</code> musi zgadzać się z pozycją księżyca na teksturze nieba.</strong> <code>makeSky</code> rysuje go w stałym miejscu; jeśli światło pada z lewej, a księżyc wisi po prawej, mózg gracza to wyłapie, choć nikt tego nie nazwie. Jeśli dobierasz <code>moonDir</code> na oko, przejdź się i sprawdź obie rzeczy naraz.</div>
+      <p style="margin-top:10px">Przy <code>moonStr</code> powyżej ok. 0.4 ściany odwrócone od księżyca robią się na tyle ciemne, że giną w mgle jeszcze przed swoim właściwym dystansem. Wygląda to efektownie na zrzucie i źle w grze.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +1 KB. CPU: trzy mnożenia na kolumnę — poniżej progu mierzalności.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Obejdź pojedynczy słup kamienia w SZRONIE. Cztery ściany mają mieć cztery wyraźnie różne jasności, a najjaśniejsza — leżeć po stronie księżyca.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B8 ══════════════════ -->
+<div class="step" data-pkg="B M" data-acc="b" id="B8">
+  <div class="step-head">
+    <div class="sid">B8</div>
+    <h3>Oświetlanie sprite'ów</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Bez tego drzewa świecą własnym światłem i wyglądają jak naklejki na oświetlonym tle. Jedno wyliczenie światła na sprite — przy 40 drzewach na ekranie to 40 wywołań na klatkę, koszt nieistotny — sprawia, że wrogowie stoją w świecie zamiast przed nim. W połączeniu z B4 drzewo przed lufą rozbłyskuje przy strzale.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div><code>render()</code> (1938–1957) przy budowie listy, potem <code>drawSprite</code> (2067).</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre><span class="c">// w render(), przy każdym push do `list` — wołane raz na obiekt</span>
+lightAt(e.x, e.y, LT);
+list.push({ x:e.x, y:e.y, tex:fr, hUnits:d.hUnits*sy, wUnits:d.wUnits*sx,
+            flash:e.flash, lr:LT[<span class="n">0</span>], lg:LT[<span class="n">1</span>], lb:LT[<span class="n">2</span>] });
+
+<span class="c">// w drawSprite, przed pętlami — mnożnik stały dla całego sprite'a</span>
+const fogK = <span class="n">1</span> - lvl/(SPR_LV-<span class="n">1</span>);
+const mr = <span class="n">256</span>+(s.lr*<span class="n">256</span>-<span class="n">256</span>)*fogK|<span class="n">0</span>;
+const mg = <span class="n">256</span>+(s.lg*<span class="n">256</span>-<span class="n">256</span>)*fogK|<span class="n">0</span>;
+const mb = <span class="n">256</span>+(s.lb*<span class="n">256</span>-<span class="n">256</span>)*fogK|<span class="n">0</span>;
+
+      const c = t[texY*tw+texX];
+      if(c===<span class="n">0</span>) continue;
+      if(flash){                       <span class="c">// trafienie wygrywa ze światłem</span>
+        buf[y*W+x] = <span class="n">0xFF000000</span> | (((c&gt;&gt;&gt;<span class="n">1</span>)&amp;<span class="n">0x7F7F7F</span>) + <span class="n">0x808080</span>);
+      } else {
+        const r=((c    &amp;<span class="n">255</span>)*mr)&gt;&gt;<span class="n">8</span>, g=((c&gt;&gt;&gt;<span class="n">8</span>&amp;<span class="n">255</span>)*mg)&gt;&gt;<span class="n">8</span>, b=((c&gt;&gt;&gt;<span class="n">16</span>&amp;<span class="n">255</span>)*mb)&gt;&gt;<span class="n">8</span>;
+        buf[y*W+x] = <span class="n">0xFF000000</span> | ((b&gt;<span class="n">255</span>?<span class="n">255</span>:b)&lt;&lt;<span class="n">16</span>)
+                                   | ((g&gt;<span class="n">255</span>?<span class="n">255</span>:g)&lt;&lt;<span class="n">8</span>)
+                                   |  (r&gt;<span class="n">255</span>?<span class="n">255</span>:r);
+      }</pre></div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Rozbłysk trafienia musi zostać poza mnożeniem.</strong> Jest to sygnał gry, nie zjawisko optyczne — gracz musi widzieć, że trafił, także w kompletnej ciemności GRZYBNI. Stąd <code>if(flash)</code> przed, nie po.</div>
+      <p style="margin-top:10px">Ta sama pętla obsługuje pnie (<code>decals</code>), znajdźki i lecące szyszki. Szyszki niosą własne światło z B4, więc <code>lightAt</code> na ich pozycji zwróci wartość zdominowaną przez nie same i pocisk stanie się biały. Daj im mnożnik na sztywno <code>[1,1,1]</code>.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +1,5 KB. CPU +40% na <code>drawSprite</code>, ale sprite'y to zwykle poniżej 20% pikseli klatki, więc w praktyce +6–8% na całości.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Zwab drzewo w ciemny zaułek i strzel. W momencie wystrzału ma się rozświetlić razem ze ścianą za nim, a w spoczynku być wyraźnie ciemniejsze od tego samego rodzaju drzewa stojącego na polanie.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ B10 ══════════════════ -->
+<div class="step" data-pkg="B M" data-acc="b" id="B10">
+  <div class="step-head">
+    <div class="sid">B10</div>
+    <h3>Cień kontaktowy pod sprite'ami</h3>
+    <div class="chips"><span class="chip B">Pakiet B</span><span class="chip M">Mieszanka</span></div>
+  </div>
+  <div class="step-body">
+    <div class="field"><span class="lbl">Cel</span><div>Sprite'y w raycasterze zawsze sprawiają wrażenie lewitujących, bo nic nie łączy ich z podłożem. Ciemna elipsa u podstawy, rysowana tuż przed sprite'em, likwiduje to jednym ruchem. Przy znajdźkach, które mają <code>zoff</code> i unoszą się, cień zostaje na ziemi — i dopiero wtedy widać, że one faktycznie lewitują.</div></div>
+
+    <div class="field"><span class="lbl">Gdzie</span><div><code>drawSprite</code> (2067), na początku — po wyliczeniu <code>scr</code>, <code>floorY</code> i <code>unit</code>, przed pętlami rysującymi teksturę.</div></div>
+
+    <div class="field"><span class="lbl">Kod</span><div class="codewrap">
+      <button class="copy" type="button">kopiuj</button>
+<pre>function contactShadow(scr, floorY, unit, wUnits, tY, str){
+  const rw = (unit*wUnits*<span class="n">0.55</span>)|<span class="n">0</span>;
+  const rh = Math.max(<span class="n">1</span>, (rw*<span class="n">0.34</span>)|<span class="n">0</span>);
+  if(rw&lt;<span class="n">1</span>) return;
+  const fy=floorY|<span class="n">0</span>;
+  const y0=Math.max(<span class="n">0</span>,fy-rh), y1=Math.min(H-<span class="n">1</span>,fy+rh);
+  const x0=Math.max(<span class="n">0</span>,scr-rw), x1=Math.min(W-<span class="n">1</span>,scr+rw);
+  for(let y=y0;y&lt;=y1;y++){
+    const dy=(y-fy)/rh, dy2=dy*dy;
+    const row=y*W;
+    for(let x=x0;x&lt;=x1;x++){
+      if(zbuf[x] &lt;= tY) continue;          <span class="c">// ściana bliżej — cień nie wychodzi</span>
+      const dx=(x-scr)/rw;
+      const d=dx*dx+dy2;
+      if(d&gt;=<span class="n">1</span>) continue;
+      const k = <span class="n">256</span> - (str*(<span class="n">1</span>-d)*<span class="n">256</span>)|<span class="n">0</span>;   <span class="c">// mnożnik &lt; 256 = przyciemnienie</span>
+      const c = buf[row+x];
+      buf[row+x] = <span class="n">0xFF000000</span>
+        | ((((c&gt;&gt;&gt;<span class="n">16</span>&amp;<span class="n">255</span>)*k)&gt;&gt;<span class="n">8</span>)&lt;&lt;<span class="n">16</span>)
+        | ((((c&gt;&gt;&gt;<span class="n">8</span> &amp;<span class="n">255</span>)*k)&gt;&gt;<span class="n">8</span>)&lt;&lt;<span class="n">8</span>)
+        |  (((c     &amp;<span class="n">255</span>)*k)&gt;&gt;<span class="n">8</span>);
+    }
+  }
+}
+
+<span class="c">// w drawSprite, po wyliczeniu floorY i przed rysowaniem tekstury.</span>
+<span class="c">// UWAGA: cień idzie na wysokość GRUNTU, więc bez odejmowania zoff —</span>
+<span class="c">// dzięki temu unosząca się znajdźka rzuca cień tam, gdzie leży ziemia.</span>
+const groundY = H/<span class="n">2</span> + camShift + unit*<span class="n">0.5</span>;
+contactShadow(scr, groundY, unit, s.wUnits, tY, <span class="n">0.5</span>);</pre></div></div>
+
+    <div class="field"><span class="lbl">Kolejność</span><div>Nic nie trzeba przestawiać w <code>render()</code>. Lista sprite'ów jest już posortowana od najdalszego do najbliższego, a cień rysuje się wewnątrz tej samej iteracji co jego sprite — więc cień bliższego drzewa pada na dalsze, już narysowane, co jest zachowaniem prawidłowym. Dwa osobne przebiegi (najpierw wszystkie cienie, potem wszystkie sprite'y) tę własność by zepsuły.</div></div>
+
+    <div class="field"><span class="lbl">Pułapki</span><div>
+      <div class="trap"><strong>Test <code>zbuf[x] &lt;= tY</code> jest obowiązkowy.</strong> Bez niego cień drzewa stojącego za ścianą przecieka na tę ścianę. To ten sam warunek, którego używa pętla rysująca sprite tuż niżej — po prostu wykonaj go także tutaj.</div>
+      <p style="margin-top:10px">Siła 0.5 przy dużym drzewie na wprost potrafi przykryć pół ekranu ciemną plamą. Jeśli to razi, zwiąż siłę z rozmiarem: <code>str = 0.5 * clamp(3/tY, 0.3, 1)</code> — daleki cień pozostaje mocny, bliski się wycofuje.</p>
+      <p style="margin-top:10px">Cień nie ma testu głębi w pionie, więc położony na stromym zboczu wyglądałby źle. W tej grze podłoga jest płaska, więc problem nie występuje — ale nie przenoś tego kodu do projektu z różnicami wysokości bez zmian.</p>
+    </div></div>
+
+    <div class="field"><span class="lbl">Koszt</span><div>Kod +1,5 KB. CPU: elipsa ma zwykle poniżej 2 000 pikseli, przy 40 sprite'ach ok. 80 000 przetworzeń — <strong>+8–12%</strong> na renderze, przy czym większość przypada na bliskie drzewa, kiedy i tak mało co jest rysowane.</div></div>
+
+    <div class="field"><span class="lbl">Sprawdzian</span><div>Podejdź do leżącej znajdźki. Cień ma zostać na ziemi i nie podskakiwać razem z unoszącym się przedmiotem — jeśli podskakuje, gdzieś przeszło <code>zoff</code> do <code>groundY</code>.</div></div>
+  </div>
+</div>
+
+</section>
+
+<section>
+  <div class="col">
+    <h2>Bilans</h2>
+    <p style="margin-top:14px">Wartości CPU to przewidywania względem linii bazowej z kroku P0, nie pomiary — renderer jest programowy i różnice między maszynami sięgają dwukrotności. Traktuj je jako kolejność ważności, nie jako liczby.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th style="width:22%">Pakiet</th>
+        <th class="num">Kod</th><th class="num">Plik</th><th class="num">RAM</th><th class="num">CPU</th><th class="num">Czas</th>
+        <th>Ryzyko</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>A</strong> — powierzchnie</td>
+          <td class="num">+14–17 KB</td><td class="num">~121 KB</td><td class="num">16 → 23 MB</td>
+          <td class="num">−5 … +20%</td><td class="num">2–3 dni</td>
+          <td>Niskie. Nic nie rusza architektury renderu; A6 to jedyny krok, który realnie obciąża klatkę.</td>
+        </tr>
+        <tr>
+          <td><strong>B</strong> — światło</td>
+          <td class="num">+18–22 KB</td><td class="num">~125 KB</td><td class="num">16 MB</td>
+          <td class="num">+30–45%</td><td class="num">3–5 dni</td>
+          <td>Średnie. Przebudowa cieniowania dotyka wszystkich trzech pętli rysujących; regresja wydajności wyjdzie dopiero przy 640×360.</td>
+        </tr>
+        <tr class="hi">
+          <td><strong>Mieszanka</strong></td>
+          <td class="num">+24–30 KB</td><td class="num">~132 KB</td><td class="num">16 → 21 MB</td>
+          <td class="num">+20–30%</td><td class="num">2–3 dni</td>
+          <td>Niskie-średnie. B1★ omija najdroższą pętlę, a A3 zwraca część kosztu. Najlepszy stosunek efektu do ryzyka.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col" style="margin-top:44px">
+    <h3>Czego nie robić</h3>
+    <ul class="tight" style="margin-top:14px">
+      <li><strong>A7 — drzewa w podwójnej rozdzielczości.</strong> Zero kodu, ale sprite'y rosną z 11,9 MB do 40–90 MB, a każda zmiana biomu generuje je od nowa. Słabsze maszyny się na tym zatrzymają. Jeśli drzewa mają wyglądać lepiej, tańszą drogą jest więcej wariantów sylwetki w <code>drawTree</code>.</li>
+      <li><strong>B6 — cienie rzucane z ray marchingiem.</strong> Efektowne, ale to dodatkowy DDA na kolumnę na światło. Przy 480 kolumnach i czterech światłach prawie podwaja koszt ścian. Wchodź w to dopiero, jeśli po wdrożeniu mieszanki pomiar pokaże znaczący zapas.</li>
+      <li><strong>A8 — filtrowanie dwuliniowe.</strong> Rozmywa dokładnie ten piksel, na którym stoi estetyka gry. <code>image-rendering:pixelated</code> w CSS jest deklaracją stylu, nie ograniczeniem.</li>
+      <li><strong>Dosypywanie assetów, żeby dobić do 1 MB.</strong> 860 KB base64 kupuje mniej jakości niż 30 KB dobrze napisanego oświetlenia, kosztuje czas ładowania i wywraca system przebarwiania biomów w <code>rebuildArt</code>.</li>
+    </ul>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function(){
+  var steps = Array.prototype.slice.call(document.querySelectorAll('.step'));
+  var btns  = Array.prototype.slice.call(document.querySelectorAll('.filterbar button'));
+  var count = document.getElementById('fcount');
+  var names = { all:'wszystkie kroki', A:'pakiet A', B:'pakiet B', M:'mieszanka' };
+
+  function apply(f){
+    var n = 0;
+    steps.forEach(function(s){
+      var on = (f === 'all') || (' ' + s.dataset.pkg + ' ').indexOf(' ' + f + ' ') >= 0;
+      s.classList.toggle('hidden-step', !on);
+      if (on) n++;
+    });
+    btns.forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.f === f)); });
+    count.textContent = n + ' z ' + steps.length + ' · ' + names[f];
+  }
+
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){ apply(b.dataset.f); });
+  });
+  apply('all');
+
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      if (!pre) return;
+      navigator.clipboard.writeText(pre.innerText).then(function(){
+        var old = btn.textContent;
+        btn.textContent = 'skopiowano';
+        setTimeout(function(){ btn.textContent = old; }, 1400);
+      }).catch(function(){ btn.textContent = 'zaznacz ręcznie'; });
+    });
+  });
+})();
+</script>
