@@ -102,6 +102,12 @@ h1{font-size:clamp(1.6rem,4vw,2.3rem);margin:0 0 2px;font-weight:700;letter-spac
 .pc.goofy.b{background:radial-gradient(circle at 35% 30%,#4a3d37,#1b1511);border:2px solid #0d0a08}
 .caps .pc.goofy{display:inline-flex;width:1.7em;height:1.7em;font-size:1em;margin:1px;text-shadow:none}
 .promo .pick .pc.goofy{font-size:.8em}
+@media (max-width:640px){
+  .page{padding:12px 8px 24px}
+  .boardwrap{width:100%;padding:0;overflow:visible}
+  .frame{width:100%;padding:8px}
+  .board{width:100%;height:auto;aspect-ratio:1/1;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr)}
+}
 #stopBtn{margin:-4px 0 12px}
 .controls[hidden]{display:none}
 .controls input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
