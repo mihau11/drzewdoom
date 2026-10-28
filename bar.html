@@ -1,0 +1,921 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>BAR Unit Toolkit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+:root{
+  --bg:#070b14;--surf:#0d1525;--surf2:#131f35;--border:#1c2e4a;
+  --fg:#ccdeff;--fg2:#5e7ea4;
+  --accent:#00d4a4;--adim:#003d30;
+  --t1:#34d399;--t2:#fbbf24;--t3:#f87171;
+  --c0:#00d4a4;--c1:#f59e0b;--c2:#60a5fa;--c3:#a78bfa;
+  --th:54px;
+  color-scheme:dark;
+  --fu:'Rajdhani','Arial Narrow',sans-serif;
+  --fm:'Share Tech Mono','Courier New',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--fu);font-size:14px;line-height:1.5;
+  padding-left:max(0px,env(safe-area-inset-left,0px));
+  padding-right:max(0px,env(safe-area-inset-right,0px));}
+
+/* ── TOPBAR ── */
+.topbar{
+  background:var(--surf);border-bottom:2px solid var(--accent);
+  padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));
+  display:flex;align-items:stretch;gap:0;
+  height:var(--th);
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:30;flex-shrink:0;
+}
+.topbar-brand{display:flex;align-items:center;gap:10px;padding-right:16px;border-right:1px solid var(--border)}
+.topbar-title{font-size:18px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);white-space:nowrap}
+.topbar-tabs{display:flex;align-items:stretch;flex:1}
+.tab-btn{
+  background:transparent;border:none;color:var(--fg2);
+  font-family:var(--fu);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:0 20px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;
+  transition:all .15s;white-space:nowrap;
+}
+.tab-btn:hover{color:var(--fg)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.topbar-end{display:flex;align-items:center;gap:10px;padding-left:12px;margin-left:auto;border-left:1px solid var(--border)}
+.sel-count{font-family:var(--fm);font-size:11px;background:var(--adim);border:1px solid var(--accent);color:var(--accent);padding:3px 10px;border-radius:3px;white-space:nowrap}
+
+/* ── SHARED ATOMS ── */
+.fb{background:transparent;border:1px solid var(--border);color:var(--fg2);font-family:var(--fu);font-size:11px;font-weight:600;padding:2px 7px;border-radius:2px;cursor:pointer;letter-spacing:.03em;transition:all .1s;}
+.fb:hover{border-color:var(--accent);color:var(--fg)}.fb.on{background:var(--adim);border-color:var(--accent);color:var(--accent)}
+.si{background:var(--surf2);border:1px solid var(--border);color:var(--fg);font-family:var(--fu);font-size:12px;padding:5px 9px;border-radius:3px;outline:none;}
+.si:focus{border-color:var(--accent)}.si::placeholder{color:var(--fg2)}
+.tier{display:inline-block;font-family:var(--fm);font-size:9px;font-weight:700;padding:1px 4px;border-radius:2px}
+.tT1{background:rgba(52,211,153,.13);color:var(--t1);border:1px solid rgba(52,211,153,.28)}
+.tT2{background:rgba(251,191,36,.10);color:var(--t2);border:1px solid rgba(251,191,36,.28)}
+.tT3{background:rgba(248,113,113,.10);color:var(--t3);border:1px solid rgba(248,113,113,.28)}
+.fdot{display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle}
+.fCortex{background:#f59e0b}.fArmada{background:#60a5fa}.fLegion{background:#a78bfa}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ══════════════════════════════════════════════════════
+   KPI BUILDER
+══════════════════════════════════════════════════════ */
+#viewKPI{display:grid;grid-template-columns:310px 1fr;height:calc(100vh - var(--th))}
+@media(max-width:720px){#viewKPI{grid-template-columns:1fr}}
+
+/* builder panel */
+.builder{background:var(--surf);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;max-height:calc(100vh - var(--th));position:sticky;top:var(--th)}
+.bsec{padding:12px 13px 0}
+.bsec-hd{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg2);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+
+/* presets */
+.presets{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:12px}
+.preset-btn{background:var(--surf2);border:1px solid var(--border);color:var(--fg2);font-family:var(--fu);font-size:11px;font-weight:600;padding:4px 0;cursor:pointer;border-radius:3px;letter-spacing:.04em;transition:all .12s;text-align:center}
+.preset-btn:hover{border-color:var(--accent);color:var(--fg)}.preset-btn.active{background:var(--adim);border-color:var(--accent);color:var(--accent)}
+
+/* metric cards */
+.metrics-list{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}
+.mcard{background:var(--surf2);border:1px solid var(--border);border-radius:4px;padding:8px 10px;display:grid;grid-template-areas:"ratio weight" "slider slider" "footer footer";grid-template-columns:auto 1fr;gap:4px 7px;transition:border-color .12s}
+.mcard:hover{border-color:#2a4068}
+.mcard-ratio{grid-area:ratio;display:flex;align-items:center;gap:4px;font-size:12px}
+.mcard-weight-lbl{grid-area:weight;display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:11px;color:var(--fg2)}
+.mcard-slider{grid-area:slider}.mcard-footer{grid-area:footer;display:flex;align-items:center;justify-content:space-between}
+.stat-sel{background:var(--surf);border:1px solid var(--border);color:var(--fg);font-family:var(--fu);font-size:12px;font-weight:600;padding:2px 4px;border-radius:3px;cursor:pointer;outline:none;min-width:62px;-webkit-appearance:none;appearance:none}
+.stat-sel:focus{border-color:var(--accent)}
+.div-sep{color:var(--fg2);font-size:14px;margin:0 2px}
+.wslider{width:100%;-webkit-appearance:none;appearance:none;height:4px;background:var(--border);border-radius:2px;outline:none;cursor:pointer}
+.wslider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent);border-radius:50%;cursor:pointer;border:2px solid var(--surf)}
+.wslider::-moz-range-thumb{width:12px;height:12px;background:var(--accent);border-radius:50%;border:2px solid var(--surf);cursor:pointer}
+.w-num{font-family:var(--fm);font-size:11px;color:var(--accent);background:var(--adim);border:1px solid var(--accent);border-radius:2px;padding:1px 5px;min-width:28px;text-align:center}
+.eff-pct{font-family:var(--fm);font-size:10px;color:var(--fg2)}
+.inv-btn{background:transparent;border:1px solid var(--border);color:var(--fg2);font-family:var(--fm);font-size:10px;padding:2px 6px;border-radius:2px;cursor:pointer;transition:all .12s}
+.inv-btn:hover{border-color:var(--fg2);color:var(--fg)}.inv-btn.on{background:rgba(251,191,36,.1);border-color:var(--t2);color:var(--t2)}
+.del-btn{background:transparent;border:1px solid transparent;color:var(--fg2);font-size:14px;padding:1px 6px;border-radius:2px;cursor:pointer;line-height:1;transition:all .12s}
+.del-btn:hover{background:rgba(248,113,113,.1);border-color:var(--t3);color:var(--t3)}
+.add-metric-btn{width:100%;background:transparent;border:1px dashed var(--border);color:var(--fg2);font-family:var(--fu);font-size:12px;font-weight:600;padding:6px;border-radius:3px;cursor:pointer;letter-spacing:.06em;transition:all .12s;margin-bottom:12px}
+.add-metric-btn:hover{border-color:var(--accent);color:var(--accent)}
+.wsum{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-size:11px;color:var(--fg2)}
+.wsum-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.wsum-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .2s}
+.wsum-val{font-family:var(--fm);color:var(--accent)}
+.tier-grid{display:grid;grid-template-columns:24px 1fr auto;gap:4px 8px;align-items:center;margin-bottom:12px}
+.tier-label{font-family:var(--fm);font-size:11px;font-weight:700}
+.tL-T1{color:var(--t1)}.tL-T2{color:var(--t2)}.tL-T3{color:var(--t3)}
+.tier-val{font-family:var(--fm);font-size:11px;color:var(--fg);min-width:34px;text-align:right}
+
+/* kpi results */
+.kpi-results{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.formula{background:var(--surf);border-bottom:1px solid var(--border);padding:7px 13px;font-size:11px;display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap}
+.formula-eq{font-family:var(--fm);color:var(--accent);font-size:11px;white-space:nowrap;padding-top:1px}
+.fterm{background:var(--surf2);border:1px solid var(--border);border-radius:3px;font-size:10px;padding:2px 6px;white-space:nowrap;font-family:var(--fm)}
+.fterm .fw{color:var(--accent)}.fterm .fm2{color:var(--fg)}.fterm .finv{color:var(--t2)}
+.fsep{color:var(--fg2);font-size:11px;padding-top:1px}
+.filterbar{background:var(--surf2);border-bottom:1px solid var(--border);padding:7px 13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rcnt{margin-left:auto;font-family:var(--fm);font-size:10px;color:var(--fg2)}
+.chart-sec{padding:11px 13px;border-bottom:1px solid var(--border)}
+.chart-sec h2{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:7px}
+.crows{display:flex;flex-direction:column;gap:3px}
+.crow{display:grid;grid-template-columns:22px 155px 1fr 52px;align-items:center;gap:6px;font-size:12px}
+.crow-rk{font-family:var(--fm);font-size:10px;color:var(--fg2);text-align:right}
+.crow-rk.top{color:var(--accent);font-weight:700}
+.crow-nm{color:var(--fg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow-tr{background:var(--surf2);border-radius:2px;height:12px;overflow:hidden}
+.crow-fi{background:var(--accent);height:100%;border-radius:2px;transition:width .4s ease}
+.crow-sc{font-family:var(--fm);font-size:12px;color:var(--accent);text-align:right}
+.twrap{overflow-x:auto;flex:1}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--surf2);color:var(--fg2);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:6px 8px;text-align:left;position:sticky;top:0;z-index:5;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:1px solid var(--border)}
+thead th:hover{color:var(--fg)}.sort-col{color:var(--accent)!important}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:hover{background:var(--surf2)}
+td{padding:5px 8px;vertical-align:middle;font-variant-numeric:tabular-nums}
+.td-n{font-weight:600;max-width:155px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td-n a{color:var(--fg);text-decoration:none}.td-n a:hover{color:var(--accent)}
+.td-m{font-family:var(--fm);font-size:11px;text-align:right;color:var(--fg)}
+.td-k{font-family:var(--fm);font-size:12px;font-weight:700;text-align:right;color:var(--accent)}
+.td-na{font-family:var(--fm);font-size:10px;text-align:right;color:var(--fg2)}
+
+/* ══════════════════════════════════════════════════════
+   UNIT COMPARE
+══════════════════════════════════════════════════════ */
+#viewCmp{display:grid;grid-template-columns:290px 1fr;height:calc(100vh - var(--th))}
+@media(max-width:720px){#viewCmp{grid-template-columns:1fr;height:auto}}
+.cmp-left{background:var(--surf);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.cmp-left-filters{padding:10px 11px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.filter-row{display:flex;gap:4px;flex-wrap:wrap}
+.sort-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--fg2)}
+.srt{background:var(--surf2);border:1px solid var(--border);color:var(--fg);font-family:var(--fu);font-size:11px;padding:2px 5px;border-radius:2px;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none}
+.srt:focus{border-color:var(--accent)}
+.unit-count{font-family:var(--fm);font-size:10px;margin-left:auto}
+.unit-list{overflow-y:auto;flex:1}
+.urow{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:6px;padding:5px 11px;cursor:pointer;border-bottom:1px solid rgba(28,46,74,.5);transition:background .1s;position:relative}
+.urow:hover{background:var(--surf2)}.urow.picked{background:rgba(0,212,164,.06)}
+.urow.picked::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px}
+.urow.picked[data-ci="0"]::before{background:var(--c0)}
+.urow.picked[data-ci="1"]::before{background:var(--c1)}
+.urow.picked[data-ci="2"]::before{background:var(--c2)}
+.urow.picked[data-ci="3"]::before{background:var(--c3)}
+.udot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.uname-lbl{font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.umeta{font-size:10px;color:var(--fg2)}
+.ubadge{font-family:var(--fm);font-size:9px;font-weight:700;padding:1px 4px;border-radius:2px;white-space:nowrap;flex-shrink:0}
+.cmp-right{overflow-y:auto;display:flex;flex-direction:column}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--fg2);padding:40px;text-align:center}
+.empty-icon{font-size:40px;opacity:.3}
+.empty h2{font-size:18px;font-weight:600;color:var(--fg)}
+.empty p{font-size:13px;max-width:300px;line-height:1.6}
+.cmp-panel{display:flex;flex-direction:column}
+.unit-cards{display:flex;gap:1px;background:var(--border);border-bottom:2px solid var(--border);flex-shrink:0}
+.ucard{flex:1;padding:11px 13px;background:var(--surf2);display:flex;flex-direction:column;gap:4px;min-width:0;position:relative}
+.ucard-color-bar{position:absolute;top:0;left:0;right:0;height:3px}
+.ucard-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ucard-name a{color:var(--fg);text-decoration:none}.ucard-name a:hover{color:var(--accent)}
+.ucard-meta{font-size:11px;color:var(--fg2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ucard-desc{font-size:11px;color:var(--fg2);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ucard-rm{position:absolute;top:7px;right:7px;background:transparent;border:none;color:var(--fg2);font-size:14px;cursor:pointer;padding:2px 5px;border-radius:2px;transition:all .1s}
+.ucard-rm:hover{background:rgba(248,113,113,.15);color:var(--t3)}
+.stat-section{padding:12px 0 6px}
+.stat-section-hd{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg2);padding:0 13px 5px;border-bottom:1px solid var(--border)}
+.srow{display:grid;padding:0 13px;align-items:center;border-bottom:1px solid rgba(28,46,74,.4)}
+.srow:hover{background:var(--surf2)}
+.srow-label{font-size:11px;color:var(--fg2);letter-spacing:.03em;padding:5px 0;min-width:88px}
+.srow-cells{display:contents}
+.scell{flex:1;padding:4px 0;min-width:0}
+.sval{font-family:var(--fm);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.sval.best{font-weight:700}.sval.na{color:var(--fg2)}
+.sbar-wrap{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.sbar{height:100%;border-radius:2px;transition:width .4s ease}
+.radar-sec{padding:14px 13px}
+.radar-sec h3{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:11px}
+.radar-wrap{display:flex;justify-content:center}
+svg.radar{overflow:visible}
+.cmp-legend{display:flex;gap:12px;flex-wrap:wrap;padding:0 13px 14px;font-size:11px}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+</style>
+
+<!-- ═══ TOPBAR ═══ -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <span class="topbar-title">◈ BAR</span>
+  </div>
+  <div class="topbar-tabs">
+    <button class="tab-btn active" data-view="kpi">⬡ KPI Builder</button>
+    <button class="tab-btn" data-view="cmp">⚔ Unit Compare</button>
+  </div>
+  <div class="topbar-end">
+    <span class="sel-count" id="selCount" hidden>0 / 4</span>
+  </div>
+</div>
+
+<!-- ═══ KPI BUILDER VIEW ═══ -->
+<div id="viewKPI" style="display:grid">
+
+  <!-- Left: builder -->
+  <div class="builder">
+    <div class="bsec">
+      <div class="bsec-hd"><span>Presets</span></div>
+      <div class="presets">
+        <button class="preset-btn active" data-preset="default">Default</button>
+        <button class="preset-btn" data-preset="raider">Raider</button>
+        <button class="preset-btn" data-preset="sniper">Sniper</button>
+        <button class="preset-btn" data-preset="tank">Tank</button>
+        <button class="preset-btn" data-preset="cost">Economy</button>
+      </div>
+    </div>
+    <div class="bsec" style="flex:1">
+      <div class="bsec-hd">
+        <span>Metrics</span>
+        <span id="wcounts" style="font-family:var(--fm);font-size:10px;color:var(--accent)"></span>
+      </div>
+      <div class="wsum">
+        <span>Weights total:</span>
+        <div class="wsum-bar"><div class="wsum-fill" id="wsumFill" style="width:0%"></div></div>
+        <span class="wsum-val" id="wsumVal">0</span>
+      </div>
+      <div class="metrics-list" id="metricsList"></div>
+      <button class="add-metric-btn" id="addMetric">+ Add metric</button>
+    </div>
+    <div class="bsec">
+      <div class="bsec-hd"><span>Tier availability bonus</span></div>
+      <div class="tier-grid">
+        <span class="tier-label tL-T1">T1</span>
+        <input type="range" class="wslider" id="slT1" min="0.5" max="2.0" step="0.05" value="1.20">
+        <span class="tier-val" id="vT1">×1.20</span>
+        <span class="tier-label tL-T2">T2</span>
+        <input type="range" class="wslider" id="slT2" min="0.5" max="2.0" step="0.05" value="1.00">
+        <span class="tier-val" id="vT2">×1.00</span>
+        <span class="tier-label tL-T3">T3</span>
+        <input type="range" class="wslider" id="slT3" min="0.5" max="2.0" step="0.05" value="0.85">
+        <span class="tier-val" id="vT3">×0.85</span>
+      </div>
+    </div>
+    <div class="bsec" style="padding-bottom:13px">
+      <div class="bsec-hd"><span>Options</span></div>
+      <button class="fb on" id="combatToggle" style="width:100%;text-align:left">⚔ Combat units only (DPS &gt; 0)</button>
+    </div>
+  </div>
+
+  <!-- Right: results -->
+  <div class="kpi-results">
+    <div class="formula">
+      <span class="formula-eq">KPI =</span>
+      <div id="formulaTerms" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"></div>
+    </div>
+    <div class="filterbar">
+      <button class="fb on" data-kf="faction" data-v="all">All</button>
+      <button class="fb" data-kf="faction" data-v="Cortex"><span class="fdot fCortex"></span>Cortex</button>
+      <button class="fb" data-kf="faction" data-v="Armada"><span class="fdot fArmada"></span>Armada</button>
+      <button class="fb" data-kf="faction" data-v="Legion"><span class="fdot fLegion"></span>Legion</button>
+      <div style="width:1px;height:16px;background:var(--border)"></div>
+      <button class="fb on" data-kf="cat" data-v="all">All types</button>
+      <button class="fb" data-kf="cat" data-v="bots">Bots</button>
+      <button class="fb" data-kf="cat" data-v="vehicles">Vehicles</button>
+      <button class="fb" data-kf="cat" data-v="aircraft">Aircraft</button>
+      <button class="fb" data-kf="cat" data-v="ships">Ships</button>
+      <div style="width:1px;height:16px;background:var(--border)"></div>
+      <button class="fb on" data-kf="tier" data-v="all">All tiers</button>
+      <button class="fb" data-kf="tier" data-v="T1"><span class="tier tT1">T1</span></button>
+      <button class="fb" data-kf="tier" data-v="T2"><span class="tier tT2">T2</span></button>
+      <button class="fb" data-kf="tier" data-v="T3"><span class="tier tT3">T3</span></button>
+      <input class="si" id="kpiSrch" type="text" placeholder="Search…" style="width:130px">
+      <span class="rcnt" id="kpiRcnt"></span>
+    </div>
+    <div class="chart-sec">
+      <h2>⬡ Top 10 — current filter</h2>
+      <div class="crows" id="kpiChart"></div>
+    </div>
+    <div class="twrap">
+      <table>
+        <thead><tr>
+          <th data-c="rank">#</th>
+          <th data-c="name">Unit</th>
+          <th data-c="faction">Faction</th>
+          <th data-c="tier">Tier</th>
+          <th data-c="category">Type</th>
+          <th data-c="dps" style="text-align:right">DPS</th>
+          <th data-c="metal" style="text-align:right">Metal</th>
+          <th data-c="hp" style="text-align:right">HP</th>
+          <th data-c="range" style="text-align:right">Range</th>
+          <th data-c="speed" style="text-align:right">Speed</th>
+          <th data-c="kpi" class="sort-col" style="text-align:right">KPI ↓</th>
+        </tr></thead>
+        <tbody id="kpiTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ UNIT COMPARE VIEW ═══ -->
+<div id="viewCmp" hidden style="display:grid">
+  <div class="cmp-left">
+    <div class="cmp-left-filters">
+      <input class="si" id="cmpSrch" type="text" placeholder="⌕  Search units…" style="width:100%" autocomplete="off">
+      <div class="filter-row" id="cmpFaction">
+        <button class="fb on" data-v="all">All</button>
+        <button class="fb" data-v="Cortex"><span class="fdot fCortex" style="margin-right:3px"></span>Cortex</button>
+        <button class="fb" data-v="Armada"><span class="fdot fArmada" style="margin-right:3px"></span>Armada</button>
+        <button class="fb" data-v="Legion"><span class="fdot fLegion" style="margin-right:3px"></span>Legion</button>
+      </div>
+      <div class="filter-row" id="cmpCat">
+        <button class="fb on" data-v="all">All types</button>
+        <button class="fb" data-v="bots">Bots</button>
+        <button class="fb" data-v="vehicles">Vehicles</button>
+        <button class="fb" data-v="aircraft">Aircraft</button>
+        <button class="fb" data-v="ships">Ships</button>
+      </div>
+      <div class="filter-row" id="cmpTier">
+        <button class="fb on" data-v="all">All tiers</button>
+        <button class="fb" data-v="T1"><span class="tier tT1">T1</span></button>
+        <button class="fb" data-v="T2"><span class="tier tT2">T2</span></button>
+        <button class="fb" data-v="T3"><span class="tier tT3">T3</span></button>
+      </div>
+      <div class="sort-row">
+        <span>Sort:</span>
+        <select class="srt" id="cmpSort">
+          <option value="name">Name</option>
+          <option value="faction">Faction</option>
+          <option value="dps">DPS</option>
+          <option value="metal">Metal</option>
+          <option value="hp">HP</option>
+          <option value="range">Range</option>
+          <option value="speed">Speed</option>
+        </select>
+        <span class="unit-count" id="cmpUcount"></span>
+      </div>
+    </div>
+    <div class="unit-list" id="cmpUnitList"></div>
+  </div>
+  <div class="cmp-right" id="cmpRight">
+    <div class="empty" id="cmpEmpty">
+      <div class="empty-icon">⚔</div>
+      <h2>No units selected</h2>
+      <p>Click any unit in the list to add it to the comparison. Up to 4 units at once.</p>
+    </div>
+    <div class="cmp-panel" id="cmpPanel" hidden></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  SHARED DATA
+// ════════════════════════════════════════════════════════
+const RAW=[
+["Cortex","bots","Grunt","T1","Fast Infantry Bot","https://www.beyondallreason.info/unit/corak","1250","","74","820","280","","43","","","215","520","","81",""],
+["Cortex","bots","Aggravator","T1","Rocket Bot","https://www.beyondallreason.info/unit/corstorm","1950","","41","1150","740","","110","","","475","380","","47",""],
+["Cortex","bots","Construction Bot","T1","T1 Constructor","https://www.beyondallreason.info/unit/corck","3550","85","","1750","820","","120","","","","380","","34",""],
+["Cortex","bots","Trasher","T1","Amphibious AA Bot","https://www.beyondallreason.info/unit/corcrash","1900","","55","1100","640","","125","","","760","380","","53",""],
+["Cortex","bots","Graverobber","T1","Stealthy Rez Bot","https://www.beyondallreason.info/unit/cornecro","2800","200","","1400","220","","130","","50","","430","","78",""],
+["Cortex","bots","Thug","T1","Light Plasma Bot","https://www.beyondallreason.info/unit/corthud","2100","","60","1150","1100","","140","","","380","380","","45",""],
+["Cortex","bots","Bedbug","T2","Amphibious Bomb","https://www.beyondallreason.info/unit/corroach","8000","","","5800","620","","69","","","","260","","76",""],
+["Cortex","bots","Deceiver","T2","Radar Jammer Bot","https://www.beyondallreason.info/unit/corspec","6500","","","1300","350","450","75","","","","380","","35",""],
+["Cortex","bots","Fiend","T2","Fast Assault Bot","https://www.beyondallreason.info/unit/corpyro","6500","","240","3000","1060","","200","","","230","380","","82",""],
+["Cortex","bots","Duck","T2","Amphibious Bot","https://www.beyondallreason.info/unit/coramph","12500","","174","9500","2350","","330","","300","400","400","300","55",""],
+["Cortex","bots","Sheldon","T2","Mobile Mortar Bot","https://www.beyondallreason.info/unit/cormort","7000","","66","2800","940","","400","","","850","380","","50",""],
+["Cortex","bots","Termite","T2","Heavy Spider","https://www.beyondallreason.info/unit/cortermite","17000","","331","8100","3100","","540","","","340","380","","50",""],
+["Cortex","bots","Sumo","T2","Armored Assault Bot","https://www.beyondallreason.info/unit/corcan","12000","","344","9300","6000","","560","","","275","380","","38",""],
+["Cortex","bots","Arbiter","T2","Heavy Rocket Bot","https://www.beyondallreason.info/unit/corhrk","9500","","106","6500","610","","600","","","1210","380","","54",""],
+["Cortex","bots","Manticore","T2","Heavy AA Bot","https://www.beyondallreason.info/unit/coraak","11000","","233","6200","3200","","650","","","1300","390","","34",""],
+["Cortex","bots","Commando","T2","Stealthy Paratrooper","https://www.beyondallreason.info/unit/cormando","24000","200","200","15500","1800","150","1200","","900","300","600","","75",""],
+["Cortex","bots","Mammoth","T2","Heavily Armored Bot","https://www.beyondallreason.info/unit/corsumo","65000","","503","35000","15600","","2200","","","650","510","","23",""],
+["Cortex","bots","Shiva","T3","Amphibious Siege Mech","https://www.beyondallreason.info/unit/corshiva","40000","","407","23000","9400","","1700","","","800","520","","48",""],
+["Cortex","bots","Karganeth","T3","All-Terrain Assault Mech","https://www.beyondallreason.info/unit/corkarg","94000","","850","57000","12500","","2500","","","700","455","","45",""],
+["Cortex","bots","Catapult","T3","Heavy Rocket Bot","https://www.beyondallreason.info/unit/corcat","160000","","600","80000","6100","","4900","","","1350","700","","48",""],
+["Cortex","bots","Demon","T3","Flamethrower Mech","https://www.beyondallreason.info/unit/cordemon","160000","","1690","90000","18000","","6000","","","700","500","","63",""],
+["Cortex","bots","Behemoth","T3","Mobile Heavy Turret","https://www.beyondallreason.info/unit/corjugg","780000","","1121","513000","335000","","20000","","","590","720","","16",""],
+["Cortex","bots","Juggernaut","T3","Experimental Assault Bot","https://www.beyondallreason.info/unit/corkorg","730000","","2720","615000","149000","","29000","","","950","845","","37",""],
+["Cortex","vehicles","Rascal","T1","Light Scout Vehicle","https://www.beyondallreason.info/unit/corfav","1150","","32","270","90","","26","","","180","600","","153",""],
+["Cortex","vehicles","Incisor","T1","Light Tank","https://www.beyondallreason.info/unit/corgator","2300","","94","1100","820","","120","","","230","330","","85",""],
+["Cortex","vehicles","Lasher","T1","Missile Truck","https://www.beyondallreason.info/unit/cormist","3440","","73","2400","860","","155","","","700","620","","52",""],
+["Cortex","vehicles","Wolverine","T1","Light Mobile Artillery","https://www.beyondallreason.info/unit/corwolv","3550","","42","2500","750","","170","","","710","330","","48",""],
+["Cortex","vehicles","Garpike","T1","Light Amphibious Tank","https://www.beyondallreason.info/unit/corgarp","3100","","77","2600","1420","","220","","","305","500","175","58",""],
+["Cortex","vehicles","Pounder","T1","Anti-Swarm Tank","https://www.beyondallreason.info/unit/corlevlr","3100","","106","2600","1400","","220","","","315","330","","40",""],
+["Cortex","vehicles","Brute","T1","Medium Assault Tank","https://www.beyondallreason.info/unit/corraid","3900","","81","2400","2000","","235","","","350","350","","72",""],
+["Cortex","vehicles","Salamander","T2","Medium Heat Ray Amphib","https://www.beyondallreason.info/unit/corsala","10500","","164","7000","2100","","350","","","340","385","299","72",""],
+["Cortex","vehicles","Quaker","T2","Mobile Artillery","https://www.beyondallreason.info/unit/cormart","9000","","84","4400","1200","","400","","","800","330","","58",""],
+["Cortex","vehicles","Fury","T2","Anti-Air Flak Vehicle","https://www.beyondallreason.info/unit/corsent","16000","","273","10500","2700","","470","","","775","338","","69",""],
+["Cortex","vehicles","Tiger","T2","Heavy Assault Tank","https://www.beyondallreason.info/unit/correap","16000","","150","10000","5300","","690","","","410","410","","69",""],
+["Cortex","vehicles","Negotiator","T2","Stealthy Rocket Launcher","https://www.beyondallreason.info/unit/corvroc","20000","","113","9000","1400","","880","","","1310","330","","33",""],
+["Cortex","vehicles","Banisher","T2","Heavy Missile Tank","https://www.beyondallreason.info/unit/corban","30000","","133","23000","2500","","1000","","","800","650","","54",""],
+["Cortex","vehicles","Poison Arrow","T2","Very Heavy Amphib Tank","https://www.beyondallreason.info/unit/corparrow","26000","","206","21000","6300","","1050","","","575","500","289","51",""],
+["Cortex","vehicles","Tzar","T2","Very Heavy Assault Tank","https://www.beyondallreason.info/unit/corgol","40000","","257","28000","7800","","1650","","","650","395","","39",""],
+["Cortex","vehicles","Tremor","T2","Heavy Artillery Vehicle","https://www.beyondallreason.info/unit/cortrem","43000","","400","49000","3000","","1850","","","1470","351","","40",""],
+["Cortex","aircraft","Valiant","T1","Fighter","https://www.beyondallreason.info/unit/corveng","3330","","139","2800","156","","73","","","680","430","","297",""],
+["Cortex","aircraft","Bat","T1","Seaplane Swarmer","https://www.beyondallreason.info/unit/corsfig","6500","","240","4600","220","","90","","","710","430","","315",""],
+["Cortex","aircraft","Whirlwind","T1","Bomber","https://www.beyondallreason.info/unit/corshad","5050","","93","4600","680","","150","","","","430","","234",""],
+["Cortex","aircraft","Dam Buster","T1","Seaplane Bomber","https://www.beyondallreason.info/unit/corsb","9000","","150","8200","940","","200","","","","455","","240",""],
+["Cortex","aircraft","Cutlass","T1","Seaplane Gunship","https://www.beyondallreason.info/unit/corcut","11500","","72","5400","1010","","230","","","430","595","","152",""],
+["Cortex","aircraft","Monsoon","T1","Torpedo Gunship","https://www.beyondallreason.info/unit/corseap","11000","","86","5500","1000","","230","","","600","535","535","200",""],
+["Cortex","aircraft","Nighthawk","T2","Stealth Fighter","https://www.beyondallreason.info/unit/corvamp","10500","","500","5100","290","","145","","","690","430","","379",""],
+["Cortex","aircraft","Hailstorm","T2","Heavy Strategic Bomber","https://www.beyondallreason.info/unit/corhurc","36000","","238","18500","1520","","310","","","","430","","248",""],
+["Cortex","aircraft","Wasp","T2","Gunship","https://www.beyondallreason.info/unit/corape","18000","","111","6800","1560","","370","","","410","550","","159",""],
+["Cortex","aircraft","Angler","T2","Torpedo Bomber","https://www.beyondallreason.info/unit/cortitan","18000","","150","8200","1960","","410","","800","400","500","800","279",""],
+["Cortex","aircraft","Dragon","T2","Flying Fortress","https://www.beyondallreason.info/unit/corcrwh","120000","","725","72000","16700","","5100","","","840","494","","114",""],
+["Cortex","ships","Supporter","T1","Light Gun Boat","https://www.beyondallreason.info/unit/coresupp","1400","","88","1000","480","","100","","","280","600","","109",""],
+["Cortex","ships","Herring","T1","Missile Corvette","https://www.beyondallreason.info/unit/corpt","2500","","84","1400","890","","210","","1000","750","670","400","69",""],
+["Cortex","ships","Riptide","T1","Assault Frigate","https://www.beyondallreason.info/unit/corpship","4550","","120","2800","2350","","420","","","480","500","","82",""],
+["Cortex","ships","Orca","T1","Submarine","https://www.beyondallreason.info/unit/corsub","7200","","137","4000","1060","","580","","","500","400","400","57",""],
+["Cortex","ships","Oppressor","T1","Destroyer","https://www.beyondallreason.info/unit/corroy","10600","","272","7200","3950","","960","","","710","500","400","62",""],
+["Cortex","ships","Brimstone","T2","Anti-Swarm Ship","https://www.beyondallreason.info/unit/corfship","13000","","444","9400","2700","","630","","750","710","500","","93",""],
+["Cortex","ships","Predator","T2","Fast Assault Sub","https://www.beyondallreason.info/unit/corshark","23000","","159","14000","1610","","730","","","400","390","525","84",""],
+["Cortex","ships","Arrow Storm","T2","Anti-Air Ship","https://www.beyondallreason.info/unit/corarch","21000","","429","12000","3900","","1000","","","870","465","","60",""],
+["Cortex","ships","Buccaneer","T2","Cruiser","https://www.beyondallreason.info/unit/corcrus","23000","","528","12000","6200","","1000","","","500","600","375","54",""],
+["Cortex","ships","Kraken","T2","Long-Range Battle Sub","https://www.beyondallreason.info/unit/corssub","35000","","206","29000","3900","","1900","","","850","570","400","39",""],
+["Cortex","ships","Messenger","T2","Cruise Missile Ship","https://www.beyondallreason.info/unit/cormship","24000","","206","10000","3350","","2000","","1000","1550","318","","61",""],
+["Cortex","ships","Despot","T2","Battleship","https://www.beyondallreason.info/unit/corbats","51000","","653","23000","12000","","3400","","","950","600","","53",""],
+["Cortex","ships","Black Hydra","T2","Flagship","https://www.beyondallreason.info/unit/corblackhy","310000","","1642","190000","53000","","21000","","1510","2550","650","","49",""],
+["Armada","bots","Tick","T1","Fast Scout Bot","https://www.beyondallreason.info/unit/armflea","800","","40","300","60","","21","","","140","600","","132",""],
+["Armada","bots","Pawn","T1","Fast Infantry Bot","https://www.beyondallreason.info/unit/armpw","1650","","90","900","370","","54","","","180","429","","87",""],
+["Armada","bots","Rocketeer","T1","Rocket Bot","https://www.beyondallreason.info/unit/armrock","2010","","41","1000","720","","120","","","475","380","","50",""],
+["Armada","bots","Crossbow","T1","Amphibious AA Bot","https://www.beyondallreason.info/unit/armjeth","1830","","55","1100","630","","125","","","760","380","","56",""],
+["Armada","bots","Mace","T1","Light Plasma Bot","https://www.beyondallreason.info/unit/armham","2200","","60","1300","1000","","130","","","380","380","","46",""],
+["Armada","bots","Centurion","T1","Anti-Swarm Bot","https://www.beyondallreason.info/unit/armwar","4200","","183","3100","1590","","270","","","325","380","","45",""],
+["Armada","bots","Sprinter","T2","Fast Raider Bot","https://www.beyondallreason.info/unit/armfast","5000","","120","3800","690","","160","","","230","380","","111",""],
+["Armada","bots","Platypus","T2","Amphibious Bot","https://www.beyondallreason.info/unit/armamph","7000","","152","2700","1170","","260","","","600","380","","90",""],
+["Armada","bots","Hound","T2","Mortar/Skirmish Bot","https://www.beyondallreason.info/unit/armfido","6500","","77","6300","1200","","285","","","650","400","","69",""],
+["Armada","bots","Welder","T2","Assault Bot","https://www.beyondallreason.info/unit/armzeus","8000","","214","6100","3500","","350","","","280","380","","48",""],
+["Armada","bots","Recluse","T2","All-Terrain Rocket Spider","https://www.beyondallreason.info/unit/armsptk","11500","","160","4500","1390","","400","","","575","440","","47",""],
+["Armada","bots","Archangel","T2","Advanced AA Bot","https://www.beyondallreason.info/unit/armaak","10000","","258","5600","2200","","520","","","1200","400","","47",""],
+["Armada","bots","Gunslinger","T2","Skirmish Bot","https://www.beyondallreason.info/unit/armmav","17000","","265","11000","1800","","650","","","365","550","","50",""],
+["Armada","bots","Sharpshooter","T2","Sniper Bot","https://www.beyondallreason.info/unit/armsnipe","24000","","250","20000","580","","680","","","900","455","","33",""],
+["Armada","bots","Fatboy","T2","Heavy Plasma Bot","https://www.beyondallreason.info/unit/armfboy","32000","","114","20000","7800","","1400","","","700","510","","30",""],
+["Armada","bots","Marauder","T3","Amphibious Assault Mech","https://www.beyondallreason.info/unit/armmar","33000","","379","21000","4900","","970","","","600","455","","94",""],
+["Armada","bots","Razorback","T3","Battle Mech","https://www.beyondallreason.info/unit/armraz","120000","","1050","68000","13300","","3800","","","475","450","","69",""],
+["Armada","bots","Titan","T3","Assault Mech","https://www.beyondallreason.info/unit/armbanth","360000","","1450","286000","69000","","13500","","","860","617","","45",""],
+["Armada","vehicles","Rover","T1","Light Scout Vehicle","https://www.beyondallreason.info/unit/armfav","1100","","35","370","105","","31","","","180","635","","168",""],
+["Armada","vehicles","Blitz","T1","Fast Assault Tank","https://www.beyondallreason.info/unit/armflash","2000","","90","900","730","","110","","","180","350","","101",""],
+["Armada","vehicles","Shellshocker","T1","Light Artillery","https://www.beyondallreason.info/unit/armart","3000","","42","2200","620","","135","","","710","364","","54",""],
+["Armada","vehicles","Whistler","T1","Missile Truck","https://www.beyondallreason.info/unit/armsam","3420","","74","2100","820","","150","","","700","620","","55",""],
+["Armada","vehicles","Pincer","T1","Light Amphibious Tank","https://www.beyondallreason.info/unit/armpincer","2610","","77","2000","1340","","200","","","305","500","180","63",""],
+["Armada","vehicles","Stout","T1","Medium Assault Tank","https://www.beyondallreason.info/unit/armstump","3400","","81","2100","1800","","225","","","350","350","","75",""],
+["Armada","vehicles","Janus","T1","Twin Rocket Launcher","https://www.beyondallreason.info/unit/armjanus","3550","","88","2600","1030","","240","","","380","330","","54",""],
+["Armada","vehicles","Jaguar","T2","Lightning Tank","https://www.beyondallreason.info/unit/armlatnk","8000","","286","6400","1060","","330","","","600","390","","90",""],
+["Armada","vehicles","Shredder","T2","Anti-Air Flak Vehicle","https://www.beyondallreason.info/unit/armyork","13000","","273","9100","2600","","450","","","775","390","","70",""],
+["Armada","vehicles","Turtle","T2","Heavy Amphibious Tank","https://www.beyondallreason.info/unit/armcroc","21000","","176","15000","5000","","750","","","765","500","279","54",""],
+["Armada","vehicles","Ambassador","T2","Stealthy Rocket Launcher","https://www.beyondallreason.info/unit/armmerl","21000","","111","10000","1300","","920","","","1300","330","","33",""],
+["Armada","vehicles","Bull","T2","Heavy Assault Tank","https://www.beyondallreason.info/unit/armbull","23000","","245","13000","4650","","950","","","460","494","","62",""],
+["Armada","vehicles","Starlight","T2","Mobile Tachyon Weapon","https://www.beyondallreason.info/unit/armmanni","33000","","532","18500","2800","","1200","","","950","650","","42",""],
+["Armada","vehicles","Thor","T3","Experimental Tank","https://www.beyondallreason.info/unit/armthor","320000","","2177","240000","56000","","9000","","","1050","600","","54",""],
+["Armada","aircraft","Falcon","T1","Fighter","https://www.beyondallreason.info/unit/armfig","3500","","139","2900","167","","73","","","680","430","","289",""],
+["Armada","aircraft","Cyclone","T1","Seaplane Swarmer","https://www.beyondallreason.info/unit/armsfig","7000","","252","4500","220","","90","","","710","430","","310",""],
+["Armada","aircraft","Banshee","T1","Light Gunship","https://www.beyondallreason.info/unit/armkam","5050","","39","2300","560","","135","","","350","520","","184",""],
+["Armada","aircraft","Stormbringer","T1","Bomber","https://www.beyondallreason.info/unit/armthund","5000","","92","4400","670","","150","","","","430","","250",""],
+["Armada","aircraft","Sabre","T1","Seaplane Gunship","https://www.beyondallreason.info/unit/armsaber","11000","","67","6400","1010","","210","","","425","595","","156",""],
+["Armada","aircraft","Tsunami","T1","Seaplane Bomber","https://www.beyondallreason.info/unit/armsb","10000","","143","7500","1170","","240","","","","455","","267",""],
+["Armada","aircraft","Puffin","T1","Torpedo Gunship","https://www.beyondallreason.info/unit/armseap","15000","","114","6500","1300","","290","","","600","535","535","210",""],
+["Armada","aircraft","Highwind","T2","Stealth Fighter","https://www.beyondallreason.info/unit/armhawk","11500","","536","6100","370","","150","","","740","430","","358",""],
+["Armada","aircraft","Blizzard","T2","Strategic Bomber","https://www.beyondallreason.info/unit/armpnix","25000","","190","12500","1130","","230","","","","430","","258",""],
+["Armada","aircraft","Roughneck","T2","Gunship","https://www.beyondallreason.info/unit/armbrawl","17000","","107","6200","1780","","310","","","380","550","","160",""],
+["Armada","aircraft","Cormorant","T2","Torpedo Bomber","https://www.beyondallreason.info/unit/armlance","19000","","188","8000","1920","","400","","800","400","500","800","285",""],
+["Armada","aircraft","Hornet","T2","Rapid Assault Gunship","https://www.beyondallreason.info/unit/armblade","32000","","168","22000","3000","","1250","","","420","624","","204",""],
+["Armada","aircraft","Liche","T2","Atomic Bomber","https://www.beyondallreason.info/unit/armliche","73000","","625","46000","2300","","2200","","","250","455","","294",""],
+["Armada","ships","Skater","T1","Stealthy Patrol Boat","https://www.beyondallreason.info/unit/armpt","2700","","123","1000","780","","150","","1000","760","750","400","93",""],
+["Armada","ships","Dolphin","T1","Fast Assault Corvette","https://www.beyondallreason.info/unit/armdecade","2450","","135","1500","970","","175","","","280","375","","104",""],
+["Armada","ships","Ellysaw","T1","Assault Frigate","https://www.beyondallreason.info/unit/armpship","4250","","117","2550","2150","","380","","","470","500","","81",""],
+["Armada","ships","Eel","T1","Submarine","https://www.beyondallreason.info/unit/armsub","5800","","86","3100","840","","440","","","500","400","400","66",""],
+["Armada","ships","Corsair","T1","Destroyer","https://www.beyondallreason.info/unit/armroy","10200","","259","6600","3700","","880","","","700","500","375","67",""],
+["Armada","ships","Maelstrom","T2","Fast Raider Ship","https://www.beyondallreason.info/unit/armlship","15000","","569","11400","2200","","570","","750","710","500","","99",""],
+["Armada","ships","Barracuda","T2","Fast Assault Sub","https://www.beyondallreason.info/unit/armsubk","28000","","175","17000","2350","","950","","","400","390","525","81",""],
+["Armada","ships","Dragonslayer","T2","Anti-Air Ship","https://www.beyondallreason.info/unit/armaas","21000","","430","12000","3900","","1000","","","840","475","","63",""],
+["Armada","ships","Paladin","T2","Cruiser","https://www.beyondallreason.info/unit/armcrus","23000","","482","12000","5600","","1000","","","500","600","375","60",""],
+["Armada","ships","Serpent","T2","Long-Range Battle Sub","https://www.beyondallreason.info/unit/armserp","32000","","206","27000","3550","","1800","","","800","550","400","45",""],
+["Armada","ships","Longbow","T2","Missile Cruiser","https://www.beyondallreason.info/unit/armmship","24000","","177","10000","3350","","2000","","1000","1550","318","","63",""],
+["Armada","ships","Dreadnought","T2","Battleship","https://www.beyondallreason.info/unit/armbats","50000","","600","22000","9800","","3300","","","880","600","","57",""],
+["Armada","ships","Epoch","T2","Flagship","https://www.beyondallreason.info/unit/armepoch","290000","","1599","190000","50000","","20000","","1530","2450","689","","53",""],
+["Legion","bots","Goblin","T1","Light Skirmish Bot","https://www.beyondallreason.info/unit/leggob","900","","27","420","200","","30","","","261","500","","75",""],
+["Legion","bots","Satyr","T1","Light Plasma Bot","https://www.beyondallreason.info/unit/leglob","1200","","30","500","550","","60","","","400","380","","51",""],
+["Legion","bots","Toxotai","T1","Amphibious AA Bot","https://www.beyondallreason.info/unit/legaabot","1800","","56","950","610","","120","","","760","380","","55",""],
+["Legion","bots","Phobos","T1","Fast Assault Bot","https://www.beyondallreason.info/unit/legcen","2800","","107","2200","840","","140","","","180","400","","90",""],
+["Legion","bots","Ballista","T1","Medium Rocket Bot","https://www.beyondallreason.info/unit/legbal","2400","","45","1920","900","","160","","","460","380","","43",""],
+["Legion","bots","Karkinos","T1","Dual-Weapon Infantry Bot","https://www.beyondallreason.info/unit/legkark","4400","","189","2400","1725","","310","","","360","400","","42",""],
+["Legion","bots","Infestor","T2","Infesting Spider Bot","https://www.beyondallreason.info/unit/leginfestor","4310","100","120","5200","1200","","250","","","300","400","","54",""],
+["Legion","bots","Hoplite","T2","Fast Raider Bot","https://www.beyondallreason.info/unit/legstr","9240","","240","5250","1780","","355","","","280","400","","84",""],
+["Legion","bots","Phalanx","T2","Shielded Riot Bot","https://www.beyondallreason.info/unit/legshot","11000","","105","5000","3350","","470","","","280","350","","44",""],
+["Legion","bots","Belcher","T2","Napalm/Skirmish Bot","https://www.beyondallreason.info/unit/legbart","10000","","240","5500","1780","","550","","","625","400","","60",""],
+["Legion","bots","Telchine","T2","Amphibious Assault Bot","https://www.beyondallreason.info/unit/legamph","16980","","1117","13200","2750","","600","","300","600","450","700","48",""],
+["Legion","bots","Thanatos","T2","Salvo Rocket Bot","https://www.beyondallreason.info/unit/leghrk","12600","","112","9000","1200","","750","","","1200","380","","45",""],
+["Legion","bots","Aquilon","T2","Heavy AA Bot","https://www.beyondallreason.info/unit/legadvaabot","11270","","375","6650","2400","","750","","","1151","390","","34",""],
+["Legion","bots","Incinerator","T2","Mobile Heavy Heat Ray","https://www.beyondallreason.info/unit/leginc","69700","","1000","46000","9000","","2300","","","725","650","","24",""],
+["Legion","bots","Javelin","T3","Amphibious Raider","https://www.beyondallreason.info/unit/legjav","39850","","510","21000","7200","","1200","","","700","455","","68",""],
+["Legion","bots","Praetorian","T3","Multi-Weapon Assault Mech","https://www.beyondallreason.info/unit/legeshotgunmech","159000","","1613","120000","22000","","7000","","","800","617","","72",""],
+["Legion","bots","Sol Invictus","T3","Experimental Dual Heat-Ray","https://www.beyondallreason.info/unit/legeheatraymech","585250","","2911","615000","110000","","23500","","","800","845","","40",""],
+["Legion","vehicles","Wheelie","T1","Light Scout Vehicle","https://www.beyondallreason.info/unit/legscout","900","","24","350","75","","23","","","169","635","","160",""],
+["Legion","vehicles","Alaris","T1","Fast Assault Tank","https://www.beyondallreason.info/unit/leghades","1650","","42","850","425","","65","","","211","330","","99",""],
+["Legion","vehicles","Helios","T1","Skirmisher Tank","https://www.beyondallreason.info/unit/leghelios","2600","","104","2400","1000","","160","","","320","360","","75",""],
+["Legion","vehicles","Cetus","T1","Light Amphibious Tank","https://www.beyondallreason.info/unit/legamphtank","2610","","77","2000","1340","","200","","","305","500","180","63",""],
+["Legion","vehicles","Lance","T1","Long-range Skirmisher/AA","https://www.beyondallreason.info/unit/legrail","3600","","102","3600","1100","","240","","","750","525","","46",""],
+["Legion","vehicles","Barrage","T1","Napalm Artillery","https://www.beyondallreason.info/unit/legbar","3600","","96","3200","1500","","250","","","535","400","","40",""],
+["Legion","vehicles","Decurion","T1","Armored Assault Tank","https://www.beyondallreason.info/unit/leggat","4800","","180","3600","2550","","300","","","361","400","","45",""],
+["Legion","vehicles","Quickshot","T2","Fast Raiding Vehicle","https://www.beyondallreason.info/unit/legmrv","5900","","120","4100","970","","210","","","240","500","","135",""],
+["Legion","vehicles","Charon","T2","Anti-Air Minigun Truck","https://www.beyondallreason.info/unit/legvflak","15130","","723","10500","2700","","470","","","800","338","","70",""],
+["Legion","vehicles","Triton","T2","Convertible Tank/Boat","https://www.beyondallreason.info/unit/legfloat","12000","","205","12000","3500","","650","","","550","500","","55",""],
+["Legion","vehicles","Prometheus","T2","Heavy Heatray Tank","https://www.beyondallreason.info/unit/legaheattank","25600","","758","15000","5700","","1050","","","450","450","","52",""],
+["Legion","vehicles","Medusa","T2","Heavy Salvo Rocket Tank","https://www.beyondallreason.info/unit/legmed","30370","","250","22500","3000","","1500","","","1000","600","","39",""],
+["Legion","vehicles","Inferno","T2","Long-Range Napalm Artillery","https://www.beyondallreason.info/unit/leginf","42900","","411","30000","3650","","1700","","","1200","351","","37",""],
+["Legion","vehicles","Keres","T3","Heavy Assault Anti-Swarm Tank","https://www.beyondallreason.info/unit/legkeres","60000","","535","57000","21000","","2600","","","481","650","","48",""],
+["Legion","vehicles","Daedalus","T3","Experimental Rail Tank","https://www.beyondallreason.info/unit/legerailtank","125000","","800","165000","16500","","6500","","","1000","750","","61",""],
+["Legion","aircraft","Legion Drone","T1","Light Combat Drone","https://www.beyondallreason.info/unit/legdrone","1000","","27","500","325","","15","","","300","600","","280",""],
+["Legion","aircraft","Noctua","T1","Fighter/Scout Drone","https://www.beyondallreason.info/unit/legfig","2000","","120","1600","220","","40","","400","600","700","","270",""],
+["Legion","aircraft","Martyr","T1","Kamikaze Drone","https://www.beyondallreason.info/unit/legkam","2200","","440","2000","160","","65","","","","430","","220",""],
+["Legion","aircraft","Astrapios","T1","Seaplane Fighter","https://www.beyondallreason.info/unit/legspfighter","6540","","139","4500","220","","90","","","760","430","","310",""],
+["Legion","aircraft","Legion Heavy Drone","T1","Heavy Defense Drone","https://www.beyondallreason.info/unit/legheavydrone","5820","","125","1000","1650","","90","","","430","750","","180",""],
+["Legion","aircraft","Mosquito","T1","Light Gunship","https://www.beyondallreason.info/unit/legmos","4000","","55","2000","415","","110","","","380","520","","165",""],
+["Legion","aircraft","Pyrphoros","T1","Seaplane Bomber","https://www.beyondallreason.info/unit/legspbomber","9890","","150","7500","1170","","240","","","","455","","267",""],
+["Legion","aircraft","Ladon","T1","Torpedo Seaplane Gunship","https://www.beyondallreason.info/unit/legsptorpgunship","10720","","62","5000","900","","190","","","460","535","535","273",""],
+["Legion","aircraft","Enyo","T1","Riot Cannon Seaplane","https://www.beyondallreason.info/unit/legspsurfacegunship","12140","","57","6700","1200","","270","","","400","595","","148",""],
+["Legion","aircraft","Venator","T2","Rapid-Response Flak Interceptor","https://www.beyondallreason.info/unit/legvenator","9730","","576","3200","210","","110","","","700","430","","450",""],
+["Legion","aircraft","Ajax","T2","Air-Superiority Fighter","https://www.beyondallreason.info/unit/legafigdef","11850","","800","6200","480","","180","","","600","430","","270",""],
+["Legion","aircraft","Phoenix","T2","Heavy Heatray Bomber","https://www.beyondallreason.info/unit/legphoenix","46600","","18","25000","2000","","450","","","950","430","","270",""],
+["Legion","aircraft","Aesacus","T2","Torpedo Bomber","https://www.beyondallreason.info/unit/legatorpbomber","21970","","214","9480","1900","","480","","800","400","500","800","290",""],
+["Legion","aircraft","Stronghold","T2","Heavy Transport Gunship","https://www.beyondallreason.info/unit/legstronghold","24200","","150","13000","2600","","550","","","450","430","","160",""],
+["Legion","aircraft","Tyrannus","T2","Flying Kinetic Fortress","https://www.beyondallreason.info/unit/legfort","119750","","650","79000","16700","","5600","","1000","915","600","","93",""],
+["Legion","ships","Hippocampus","T1","Light Assault Corvette","https://www.beyondallreason.info/unit/legnavyscout","1800","","60","1600","700","","120","","","351","600","","97",""],
+["Legion","ships","Iapetus","T1","AA & Radar Support Ship","https://www.beyondallreason.info/unit/legnavyaaship","4000","","120","3600","1200","","250","","1200","760","750","500","60",""],
+["Legion","ships","Ketea","T1","Combat Submarine","https://www.beyondallreason.info/unit/legnavysub","4600","","93","2400","600","","320","","","400","400","400","57",""],
+["Legion","ships","Argonaut","T1","Torpedo Frigate","https://www.beyondallreason.info/unit/legnavyfrigate","4800","","215","3700","2600","","370","","","460","500","400","72",""],
+["Legion","ships","Syracusia","T1","Heatray-Drone Carrier Destroyer","https://www.beyondallreason.info/unit/legnavydestro","11500","","225","9500","3800","","875","","","700","500","","58",""],
+["Legion","ships","Octeres","T1","Long-Range Cluster Artillery","https://www.beyondallreason.info/unit/legnavyartyship","20000","","164","15000","4500","","1450","","","960","500","","45",""],
+["Legion","ships","Leocampus","T2","Anti-Swarm Ship","https://www.beyondallreason.info/unit/leganavyantiswarm","11270","","251","8500","2300","","500","","750","760","500","","105",""],
+["Legion","ships","Thalassa","T2","Gatling Gun Cruiser","https://www.beyondallreason.info/unit/leganavycruiser","20290","","485","10800","5600","","900","","","500","600","375","57",""],
+["Legion","ships","Notus","T2","Advanced Anti-Air Flak Ship","https://www.beyondallreason.info/unit/leganavyaaship","20100","","843","12000","3900","","1000","","","860","465","","57",""],
+["Legion","ships","Architeuthis","T2","Fast Assault Sub","https://www.beyondallreason.info/unit/leganavybattlesub","25000","","180","16000","2350","","1100","","","600","450","500","72",""],
+["Legion","ships","Sphyrna","T2","Long-Range Battle Sub","https://www.beyondallreason.info/unit/leganavyheavysub","34370","","206","29000","3900","","1900","","","850","570","400","39",""],
+["Legion","ships","Ultor","T2","Missile Cruiser","https://www.beyondallreason.info/unit/leganavymissileship","23000","","330","10000","3350","","2000","","1000","1550","318","","61",""],
+["Legion","ships","Scylla","T2","Hybrid Battleship","https://www.beyondallreason.info/unit/leganavybattleship","49350","","875","21000","10350","","2900","","","750","600","","25",""],
+["Legion","ships","Neptune","T2","Naval Combat Flagship","https://www.beyondallreason.info/unit/leganavyflagship","269000","","3067","240000","48000","","16000","","1000","1000","650","","63",""],
+];
+
+const F=v=>parseFloat(v)||0;
+const UNITS=RAW.filter(r=>!r[2].toLowerCase().includes('commander')).map(r=>({
+  faction:r[0],category:r[1],name:r[2],tier:r[3],description:r[4],url:r[5],
+  build_time:F(r[6]),buildpower:F(r[7]),dps:F(r[8]),energy:F(r[9]),
+  hp:F(r[10]),metal:F(r[12]),range:F(r[15]),sight:F(r[16]),speed:F(r[18]),
+  '1':1,kpi:null,rank:9999,
+}));
+
+const COLORS=['#00d4a4','#f59e0b','#60a5fa','#a78bfa'];
+
+// ════════════════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════════════════
+const selCountEl=document.getElementById('selCount');
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const v=btn.dataset.view;
+    document.getElementById('viewKPI').hidden=v!=='kpi';
+    document.getElementById('viewCmp').hidden=v!=='cmp';
+    selCountEl.hidden=v!=='cmp';
+  });
+});
+
+// ════════════════════════════════════════════════════════
+//  ██████  KPI BUILDER
+// ════════════════════════════════════════════════════════
+const KPI_FIELDS=[
+  {k:'dps',l:'DPS'},{k:'hp',l:'HP'},{k:'metal',l:'Metal'},{k:'energy',l:'Energy'},
+  {k:'range',l:'Range'},{k:'speed',l:'Speed'},{k:'sight',l:'Sight'},{k:'1',l:'— (none)'},
+];
+const PRESETS={
+  default:{metrics:[{id:1,num:'dps',den:'metal',inv:false,w:45},{id:2,num:'hp',den:'metal',inv:false,w:15},{id:3,num:'range',den:'1',inv:false,w:20},{id:4,num:'speed',den:'1',inv:false,w:20}],tiers:{T1:1.20,T2:1.00,T3:0.85}},
+  raider:{metrics:[{id:1,num:'dps',den:'metal',inv:false,w:50},{id:2,num:'speed',den:'1',inv:false,w:35},{id:3,num:'metal',den:'1',inv:true,w:15}],tiers:{T1:1.30,T2:1.00,T3:0.70}},
+  sniper:{metrics:[{id:1,num:'range',den:'1',inv:false,w:40},{id:2,num:'dps',den:'1',inv:false,w:30},{id:3,num:'dps',den:'metal',inv:false,w:20},{id:4,num:'hp',den:'1',inv:false,w:10}],tiers:{T1:1.10,T2:1.00,T3:0.92}},
+  tank:{metrics:[{id:1,num:'hp',den:'metal',inv:false,w:50},{id:2,num:'dps',den:'metal',inv:false,w:30},{id:3,num:'hp',den:'1',inv:false,w:20}],tiers:{T1:1.10,T2:1.00,T3:0.92}},
+  cost:{metrics:[{id:1,num:'dps',den:'metal',inv:false,w:40},{id:2,num:'hp',den:'metal',inv:false,w:40},{id:3,num:'energy',den:'1',inv:true,w:20}],tiers:{T1:1.30,T2:1.00,T3:0.70}},
+};
+let kpi={
+  metrics:[],tiers:{T1:1.20,T2:1.00,T3:0.85},nextId:10,combatOnly:true,
+  filters:{faction:'all',cat:'all',tier:'all'},search:'',sort:{col:'kpi',dir:-1},activePreset:'default',
+};
+
+function kpiComputeKPI(){
+  const active=kpi.metrics.filter(m=>m.w>0);
+  if(!active.length){UNITS.forEach(u=>{u.kpi=null;u.rank=9999});return;}
+  active.forEach(m=>{
+    const vals=[];
+    UNITS.forEach(u=>{const n=u[m.num],d=m.den==='1'?1:u[m.den];if(!d||n===undefined)return;const v=n/d;if(v>0)vals.push(v);});
+    m._mn=vals.length?Math.min(...vals):0; m._mx=vals.length?Math.max(...vals):1;
+  });
+  const totalW=active.reduce((s,m)=>s+m.w,0);
+  UNITS.forEach(u=>{
+    if(kpi.combatOnly&&u.dps===0){u.kpi=null;u.rank=9999;return;}
+    let score=0,wUsed=0;
+    active.forEach(m=>{
+      const n=u[m.num],d=m.den==='1'?1:u[m.den];
+      if(!d||n===undefined)return;
+      const v=n/d,span=m._mx-m._mn;
+      let nv=span>0?(v-m._mn)/span:0;
+      if(m.inv)nv=1-nv;
+      score+=nv*m.w; wUsed+=m.w;
+    });
+    if(!wUsed){u.kpi=null;u.rank=9999;return;}
+    u.kpi=(score/wUsed)*(kpi.tiers[u.tier]||1)*100;
+  });
+  const ranked=UNITS.filter(u=>u.kpi!==null).sort((a,b)=>b.kpi-a.kpi);
+  ranked.forEach((u,i)=>u.rank=i+1);
+  UNITS.filter(u=>u.kpi===null).forEach(u=>u.rank=9999);
+}
+
+function kpiGetVisible(){
+  return UNITS.filter(u=>{
+    if(kpi.filters.faction!=='all'&&u.faction!==kpi.filters.faction)return false;
+    if(kpi.filters.cat!=='all'&&u.category!==kpi.filters.cat)return false;
+    if(kpi.filters.tier!=='all'&&u.tier!==kpi.filters.tier)return false;
+    if(kpi.search&&!u.name.toLowerCase().includes(kpi.search))return false;
+    return true;
+  });
+}
+
+function kpiRenderFormula(){
+  const active=kpi.metrics.filter(m=>m.w>0);
+  const totalW=active.reduce((s,m)=>s+m.w,0)||1;
+  const el=document.getElementById('formulaTerms');
+  if(!active.length){el.innerHTML='<span style="color:var(--fg2);font-size:11px">No metrics defined</span>';return;}
+  const parts=[];
+  active.forEach((m,i)=>{
+    const pct=Math.round(m.w/totalW*100);
+    const n=KPI_FIELDS.find(f=>f.k===m.num)?.l??m.num;
+    const d=m.den==='1'?null:(KPI_FIELDS.find(f=>f.k===m.den)?.l??m.den);
+    const lbl=d?`${n} ÷ ${d}`:n;
+    const inv=m.inv?'<span class="finv"> ↓</span>':'';
+    parts.push(`<span class="fterm"><span class="fw">${pct}%</span> <span class="fm2">${lbl}${inv}</span></span>`);
+    if(i<active.length-1)parts.push('<span class="fsep">+</span>');
+  });
+  parts.push('<span class="fsep">× Tier</span>');
+  el.innerHTML=parts.join('');
+}
+
+function kpiRenderBuilder(){
+  const totalW=kpi.metrics.reduce((s,m)=>s+m.w,0);
+  document.getElementById('wsumFill').style.width=Math.min(100,totalW)+'%';
+  document.getElementById('wsumVal').textContent=totalW;
+  document.getElementById('wcounts').textContent=kpi.metrics.length+' metric'+(kpi.metrics.length!==1?'s':'');
+  const mkDen=sel=>KPI_FIELDS.map(f=>`<option value="${f.k}"${f.k===sel?' selected':''}>${f.l}</option>`).join('');
+  const mkNum=sel=>KPI_FIELDS.map(f=>`<option value="${f.k}"${f.k===sel?' selected':''}>${f.l}</option>`).join('');
+  const totalW2=kpi.metrics.reduce((s,m)=>s+m.w,0)||1;
+  document.getElementById('metricsList').innerHTML=kpi.metrics.map(m=>{
+    const pct=Math.round(m.w/totalW2*100);
+    return`<div class="mcard" data-id="${m.id}">
+<div class="mcard-ratio"><select class="stat-sel" data-id="${m.id}" data-field="num">${mkNum(m.num)}</select><span class="div-sep">÷</span><select class="stat-sel" data-id="${m.id}" data-field="den">${mkDen(m.den)}</select></div>
+<div class="mcard-weight-lbl"><span class="eff-pct">${pct}%</span><span class="w-num">${m.w}</span></div>
+<div class="mcard-slider"><input type="range" class="wslider" data-id="${m.id}" data-field="w" min="0" max="100" step="1" value="${m.w}"></div>
+<div class="mcard-footer"><button class="inv-btn${m.inv?' on':''}" data-id="${m.id}" data-action="inv">${m.inv?'↓ Lower better':'↑ Higher better'}</button><button class="del-btn" data-id="${m.id}" data-action="del">×</button></div>
+</div>`;}).join('');
+}
+
+function kpiRenderChart(vis){
+  const top=vis.filter(u=>u.kpi!==null).sort((a,b)=>b.kpi-a.kpi).slice(0,10);
+  const mx=top[0]?.kpi||1;
+  document.getElementById('kpiChart').innerHTML=top.map((u,i)=>`
+<div class="crow"><span class="crow-rk${i<3?' top':''}">${i+1}</span>
+<span class="crow-nm" title="${u.name}">${u.name}</span>
+<div class="crow-tr"><div class="crow-fi" style="width:${(u.kpi/mx*100).toFixed(1)}%"></div></div>
+<span class="crow-sc">${u.kpi.toFixed(1)}</span></div>`).join('');
+}
+
+function kpiRenderTable(vis){
+  const rows=[...vis].sort((a,b)=>{
+    const{col,dir}=kpi.sort;
+    const av=a[col]??(dir<0?-Infinity:Infinity),bv=b[col]??(dir<0?-Infinity:Infinity);
+    return typeof av==='string'?dir*av.localeCompare(bv):dir*(av-bv);
+  });
+  document.getElementById('kpiRcnt').textContent=rows.length+' units';
+  document.getElementById('kpiTbody').innerHTML=rows.map(u=>`<tr>
+<td class="td-m">${u.rank<9999?u.rank:'—'}</td>
+<td class="td-n"><a href="${u.url}" target="_blank" rel="noopener">${u.name}</a></td>
+<td><span class="fdot f${u.faction}"></span>${u.faction}</td>
+<td><span class="tier tT${u.tier.slice(1)}">${u.tier}</span></td>
+<td style="color:var(--fg2);font-size:11px">${u.category}</td>
+<td class="td-m">${u.dps>0?u.dps.toLocaleString():'-'}</td>
+<td class="td-m">${u.metal>0?u.metal.toLocaleString():'-'}</td>
+<td class="td-m">${u.hp>0?u.hp.toLocaleString():'-'}</td>
+<td class="td-m">${u.range>0?u.range:'-'}</td>
+<td class="td-m">${u.speed>0?u.speed:'-'}</td>
+${u.kpi!==null?`<td class="td-k">${u.kpi.toFixed(1)}</td>`:`<td class="td-na">n/a</td>`}
+</tr>`).join('');
+}
+
+function kpiRenderAll(){
+  kpiComputeKPI();kpiRenderFormula();kpiRenderBuilder();
+  const vis=kpiGetVisible();kpiRenderChart(vis);kpiRenderTable(vis);
+}
+
+function kpiMarkDirty(){kpi.activePreset=null;document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));}
+
+// tier sliders
+['T1','T2','T3'].forEach(t=>{
+  const sl=document.getElementById('sl'+t),vl=document.getElementById('v'+t);
+  sl.addEventListener('input',()=>{kpi.tiers[t]=parseFloat(sl.value);vl.textContent='×'+parseFloat(sl.value).toFixed(2);kpiMarkDirty();kpiRenderAll();});
+});
+
+// metrics delegation
+document.getElementById('metricsList').addEventListener('change',e=>{
+  const el=e.target,id=parseInt(el.dataset.id),field=el.dataset.field;
+  if(!field||!id)return;
+  const m=kpi.metrics.find(x=>x.id===id);if(!m)return;
+  if(field==='w')m.w=parseInt(el.value)||0; else m[field]=el.value;
+  kpiMarkDirty();kpiRenderAll();
+});
+document.getElementById('metricsList').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-action]');if(!btn)return;
+  const id=parseInt(btn.dataset.id),action=btn.dataset.action;
+  if(action==='del'){kpi.metrics=kpi.metrics.filter(m=>m.id!==id);kpiMarkDirty();kpiRenderAll();}
+  else if(action==='inv'){const m=kpi.metrics.find(x=>x.id===id);if(m){m.inv=!m.inv;kpiMarkDirty();kpiRenderAll();}}
+});
+document.getElementById('addMetric').addEventListener('click',()=>{kpi.metrics.push({id:kpi.nextId++,num:'dps',den:'metal',inv:false,w:20});kpiMarkDirty();kpiRenderAll();});
+
+// presets
+document.querySelectorAll('.preset-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const p=PRESETS[btn.dataset.preset];if(!p)return;
+    kpi.metrics=p.metrics.map(m=>({...m}));kpi.tiers={...p.tiers};kpi.activePreset=btn.dataset.preset;
+    ['T1','T2','T3'].forEach(t=>{document.getElementById('sl'+t).value=kpi.tiers[t];document.getElementById('v'+t).textContent='×'+kpi.tiers[t].toFixed(2);});
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+    kpiRenderAll();
+  });
+});
+
+// filter buttons (kpi uses data-kf)
+document.querySelectorAll('[data-kf]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const grp=btn.dataset.kf,val=btn.dataset.v;
+    document.querySelectorAll(`[data-kf="${grp}"]`).forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+    kpi.filters[grp]=val;kpiRenderAll();
+  });
+});
+document.getElementById('kpiSrch').addEventListener('input',e=>{kpi.search=e.target.value.toLowerCase().trim();kpiRenderAll();});
+document.getElementById('combatToggle').addEventListener('click',function(){kpi.combatOnly=!kpi.combatOnly;this.textContent=kpi.combatOnly?'⚔ Combat units only (DPS > 0)':'◻ All units (incl. utility)';this.classList.toggle('on',kpi.combatOnly);kpiRenderAll();});
+document.querySelectorAll('thead th[data-c]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.c;
+    if(kpi.sort.col===col)kpi.sort.dir*=-1;else{kpi.sort.col=col;kpi.sort.dir=['name','faction','tier','category'].includes(col)?1:-1;}
+    document.querySelectorAll('thead th').forEach(t=>t.classList.remove('sort-col'));th.classList.add('sort-col');
+    kpiRenderAll();
+  });
+});
+
+// ════════════════════════════════════════════════════════
+//  ██████  UNIT COMPARE
+// ════════════════════════════════════════════════════════
+const CMP_STAT_GROUPS=[
+  {label:'Combat',stats:[
+    {k:'dps',l:'DPS',fmt:v=>v>0?v.toLocaleString():'-',higher:true},
+    {k:'hp',l:'HP',fmt:v=>v>0?v.toLocaleString():'-',higher:true},
+    {k:'range',l:'Range',fmt:v=>v>0?v:'-',higher:true},
+  ]},
+  {label:'Movement & Economy',stats:[
+    {k:'speed',l:'Speed',fmt:v=>v>0?v:'-',higher:true},
+    {k:'metal',l:'Metal cost',fmt:v=>v>0?v.toLocaleString():'-',higher:false},
+    {k:'energy',l:'Energy',fmt:v=>v>0?v.toLocaleString():'-',higher:false},
+    {k:'build_time',l:'Build time',fmt:v=>v>0?v.toLocaleString()+' s':'-',higher:false},
+  ]},
+  {label:'Efficiency ratios',stats:[
+    {k:'_dpm',l:'DPS / Metal',fmt:v=>v>0?v.toFixed(3):'-',higher:true,get:u=>u.dps>0&&u.metal>0?u.dps/u.metal:0},
+    {k:'_hpm',l:'HP / Metal', fmt:v=>v>0?v.toFixed(2):'-', higher:true,get:u=>u.hp>0&&u.metal>0?u.hp/u.metal:0},
+    {k:'_dph',l:'DPS / HP',   fmt:v=>v>0?v.toFixed(4):'-', higher:true,get:u=>u.dps>0&&u.hp>0?u.dps/u.hp:0},
+    {k:'sight',l:'Sight',fmt:v=>v>0?v:'-',higher:true},
+    {k:'buildpower',l:'Build power',fmt:v=>v>0?v:'-',higher:true},
+  ]},
+];
+const RADAR_STATS=[
+  {k:'dps',l:'DPS',get:u=>u.dps},{k:'hp',l:'HP',get:u=>u.hp},
+  {k:'range',l:'Range',get:u=>u.range},{k:'speed',l:'Speed',get:u=>u.speed},
+  {k:'_hpm',l:'HP/Metal',get:u=>u.hp>0&&u.metal>0?u.hp/u.metal:0},
+  {k:'_dpm',l:'DPS/Metal',get:u=>u.dps>0&&u.metal>0?u.dps/u.metal:0},
+];
+const RADAR_GMAX={};
+RADAR_STATS.forEach(s=>{RADAR_GMAX[s.k]=Math.max(...UNITS.map(u=>s.get(u)))||1;});
+
+let cmpSelected=[];
+let cmpF={faction:'all',cat:'all',tier:'all',search:'',sort:'name'};
+
+function bindCmpGroup(el,key){
+  el.querySelectorAll('.fb').forEach(btn=>{
+    btn.addEventListener('click',()=>{el.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');cmpF[key]=btn.dataset.v;cmpRenderList();});
+  });
+}
+bindCmpGroup(document.getElementById('cmpFaction'),'faction');
+bindCmpGroup(document.getElementById('cmpCat'),'cat');
+bindCmpGroup(document.getElementById('cmpTier'),'tier');
+document.getElementById('cmpSrch').addEventListener('input',e=>{cmpF.search=e.target.value.toLowerCase().trim();cmpRenderList();});
+document.getElementById('cmpSort').addEventListener('change',e=>{cmpF.sort=e.target.value;cmpRenderList();});
+
+function cmpGetFiltered(){
+  return UNITS.filter(u=>{
+    if(cmpF.faction!=='all'&&u.faction!==cmpF.faction)return false;
+    if(cmpF.cat!=='all'&&u.category!==cmpF.cat)return false;
+    if(cmpF.tier!=='all'&&u.tier!==cmpF.tier)return false;
+    if(cmpF.search&&!u.name.toLowerCase().includes(cmpF.search))return false;
+    return true;
+  }).sort((a,b)=>{
+    const av=a[cmpF.sort]??'',bv=b[cmpF.sort]??'';
+    return typeof av==='number'?bv-av:av.localeCompare(bv);
+  });
+}
+
+function cmpRenderList(){
+  const units=cmpGetFiltered();
+  document.getElementById('cmpUcount').textContent=units.length+' units';
+  document.getElementById('cmpUnitList').innerHTML=units.map(u=>{
+    const ci=cmpSelected.indexOf(u),picked=ci>=0;
+    return`<div class="urow${picked?' picked':''}" data-name="${u.name}"${picked?' data-ci="'+ci+'"':''}>
+<span class="udot f${u.faction}"></span>
+<div style="min-width:0"><div class="uname-lbl">${u.name}</div><div class="umeta">${u.faction} · ${u.category}${u.dps>0?' · DPS '+u.dps:''}</div></div>
+<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+<span class="ubadge tT${u.tier.slice(1)}">${u.tier}</span>
+${picked?'<span style="font-family:var(--fm);font-size:9px;color:var(--c'+ci+')">✓</span>':''}
+</div></div>`;
+  }).join('');
+  document.getElementById('cmpUnitList').querySelectorAll('.urow').forEach(row=>{
+    row.addEventListener('click',()=>cmpToggle(row.dataset.name));
+  });
+}
+
+function cmpToggle(name){
+  const u=UNITS.find(x=>x.name===name);if(!u)return;
+  const idx=cmpSelected.indexOf(u);
+  if(idx>=0)cmpSelected.splice(idx,1);
+  else{if(cmpSelected.length>=4)return;cmpSelected.push(u);}
+  selCountEl.textContent=cmpSelected.length+' / 4';
+  cmpRenderList();cmpRenderCompare();
+}
+
+function cmpBuildRadar(){
+  if(!cmpSelected.length)return'';
+  const N=RADAR_STATS.length,cx=155,cy=150,R=105,pad=48;
+  const W=cx*2,H=cy*2+8;
+  const angles=RADAR_STATS.map((_,i)=>(Math.PI*2/N)*i-Math.PI/2);
+  let svg=`<svg class="radar" width="${W+pad*2}" height="${H}" viewBox="${-pad} 0 ${W+pad*2} ${H}">`;
+  [0.25,0.5,0.75,1].forEach(lvl=>{
+    const pts=angles.map(a=>`${cx+R*lvl*Math.cos(a)},${cy+R*lvl*Math.sin(a)}`).join(' ');
+    svg+=`<polygon points="${pts}" fill="none" stroke="${lvl===1?'#2a4068':'#1a2c44'}" stroke-width="${lvl===1?1.5:1}"/>`;
+  });
+  angles.forEach((a,i)=>{
+    svg+=`<line x1="${cx}" y1="${cy}" x2="${cx+R*Math.cos(a)}" y2="${cy+R*Math.sin(a)}" stroke="#1a2c44" stroke-width="1"/>`;
+    const lx=cx+(R+17)*Math.cos(a),ly=cy+(R+17)*Math.sin(a);
+    const anchor=Math.abs(Math.cos(a))<0.1?'middle':Math.cos(a)>0?'start':'end';
+    svg+=`<text x="${lx}" y="${ly+4}" text-anchor="${anchor}" font-family="Rajdhani,sans-serif" font-size="11" fill="#5e7ea4" font-weight="600">${RADAR_STATS[i].l}</text>`;
+  });
+  cmpSelected.forEach((u,ci)=>{
+    const pts=RADAR_STATS.map((s,i)=>{const v=s.get(u),n=Math.min(1,v/RADAR_GMAX[s.k]);return`${cx+R*n*Math.cos(angles[i])},${cy+R*n*Math.sin(angles[i])}`;}).join(' ');
+    const col=COLORS[ci];
+    svg+=`<polygon points="${pts}" fill="${col}" fill-opacity="0.12" stroke="${col}" stroke-width="1.5"/>`;
+    RADAR_STATS.forEach((s,i)=>{const v=s.get(u),n=Math.min(1,v/RADAR_GMAX[s.k]),dx=cx+R*n*Math.cos(angles[i]),dy=cy+R*n*Math.sin(angles[i]);svg+=`<circle cx="${dx}" cy="${dy}" r="3" fill="${col}" stroke="var(--surf)" stroke-width="1.5"/>`;});
+  });
+  return svg+'</svg>';
+}
+
+function cmpRenderCompare(){
+  const empty=document.getElementById('cmpEmpty'),panel=document.getElementById('cmpPanel');
+  if(!cmpSelected.length){empty.hidden=false;panel.hidden=true;return;}
+  empty.hidden=true;panel.hidden=false;
+  const n=cmpSelected.length,gridCols=`88px repeat(${n},1fr)`;
+
+  const cardsHTML=cmpSelected.map((u,ci)=>`
+<div class="ucard"><div class="ucard-color-bar" style="background:${COLORS[ci]}"></div>
+<div class="ucard-name"><a href="${u.url}" target="_blank" rel="noopener">${u.name}</a></div>
+<div class="ucard-meta"><span class="udot f${u.faction}"></span>${u.faction}<span class="ubadge tT${u.tier.slice(1)}">${u.tier}</span><span style="color:var(--fg2)">${u.category}</span></div>
+<div class="ucard-desc">${u.description}</div>
+<button class="ucard-rm" data-name="${u.name}">×</button></div>`).join('');
+
+  let statsHTML='';
+  CMP_STAT_GROUPS.forEach(grp=>{
+    statsHTML+=`<div class="stat-section"><div class="stat-section-hd">${grp.label}</div>`;
+    grp.stats.forEach(stat=>{
+      const vals=cmpSelected.map(u=>stat.get?stat.get(u):u[stat.k]);
+      const numVals=vals.filter(v=>v>0);
+      const maxV=numVals.length?Math.max(...numVals):1,minV=numVals.length?Math.min(...numVals):0;
+      const bestV=stat.higher?maxV:minV;
+      const cells=cmpSelected.map((u,ci)=>{
+        const v=stat.get?stat.get(u):u[stat.k];
+        const pct=maxV>0&&v>0?(v/maxV*100).toFixed(1):0;
+        const isBest=numVals.length>1&&v>0&&v===bestV;
+        return`<div class="scell" style="padding-left:9px"><div class="sval${v>0?'':' na'}${isBest?' best':''}" style="${isBest?'color:'+COLORS[ci]+';':''}">${stat.fmt(v)}</div><div class="sbar-wrap"><div class="sbar" style="width:${pct}%;background:${COLORS[ci]};opacity:${isBest?1:0.45}"></div></div></div>`;
+      }).join('');
+      statsHTML+=`<div class="srow" style="grid-template-columns:${gridCols}"><div class="srow-label">${stat.l}</div><div class="srow-cells">${cells}</div></div>`;
+    });
+    statsHTML+='</div>';
+  });
+
+  const legendHTML=`<div class="cmp-legend">${cmpSelected.map((u,ci)=>`<div class="legend-item"><div class="legend-dot" style="background:${COLORS[ci]}"></div><span>${u.name}</span></div>`).join('')}</div>`;
+
+  panel.innerHTML=`<div class="unit-cards">${cardsHTML}</div>${statsHTML}
+<div class="radar-sec"><h3>◈ Radar overview — normalised across all units</h3><div class="radar-wrap">${cmpBuildRadar()}</div></div>${legendHTML}`;
+
+  panel.querySelectorAll('.ucard-rm').forEach(btn=>{
+    btn.addEventListener('click',e=>{e.stopPropagation();cmpToggle(btn.dataset.name);});
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════
+(()=>{
+  const p=PRESETS.default;
+  kpi.metrics=p.metrics.map(m=>({...m}));kpi.tiers={...p.tiers};
+  kpiRenderAll();
+  cmpRenderList();cmpRenderCompare();
+})();
+</script>
+
+</body></html>
