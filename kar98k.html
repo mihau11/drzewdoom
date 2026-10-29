@@ -1,0 +1,2999 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schiessstand 98k</title>
+<style>
+/* Layout: full-bleed canvas, mechanical state pinned left, reference drawers right. */
+:root{
+  --bg:#0d0f0d; --panel:#141713; --panel-2:#1b1f1a; --line:#2e342a;
+  --fg:#ded8c6; --fg-dim:#8d8b7c; --brass:#b8924a; --brass-dim:#6e5a32;
+  --live:#8fa860; --warn:#c8872f; --bad:#a3442f; --steel:#7f8a93;
+  --mono:ui-monospace,"Cascadia Mono","Consolas","DejaVu Sans Mono",monospace;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px;overflow:hidden;
+     -webkit-font-smoothing:antialiased}
+canvas#view{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+.hidden{display:none!important}
+
+/* ---- left: mechanical state ---- */
+#mech{position:fixed;left:0;top:0;bottom:0;width:232px;padding:14px 14px 14px 16px;
+  background:linear-gradient(90deg,rgba(13,15,13,.94),rgba(13,15,13,.72));
+  border-right:1px solid var(--line);display:flex;flex-direction:column;gap:11px;overflow-y:auto}
+#mech h1{font-family:var(--serif);font-size:15px;font-weight:600;letter-spacing:.04em;margin:0;color:var(--brass)}
+#mech h1 small{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--fg-dim);margin-top:3px}
+.grp{border:1px solid var(--line);background:var(--panel);padding:8px 9px}
+.grp>.lbl{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--fg-dim);margin-bottom:5px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;line-height:1.55}
+.row b{font-weight:600;font-variant-numeric:tabular-nums}
+.big{font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.sub{font-size:10px;color:var(--fg-dim)}
+.tag{display:inline-block;padding:1px 6px;border:1px solid currentColor;font-size:10px;letter-spacing:.08em}
+.t-fire{color:var(--live)} .t-safe{color:var(--warn)} .t-lock{color:var(--bad)} .t-ok{color:var(--brass)}
+#boltbar{height:7px;background:#0a0c0a;border:1px solid var(--line);position:relative;margin:5px 0 3px}
+#boltfill{position:absolute;top:1px;bottom:1px;left:1px;width:3px;background:var(--brass)}
+#rounds{display:flex;gap:3px;margin-top:5px}
+.rd{flex:1;height:15px;border:1px solid var(--brass-dim);background:#0a0c0a}
+.rd.full{background:linear-gradient(180deg,var(--brass),var(--brass-dim))}
+.keys{font-size:10px;color:var(--fg-dim);line-height:1.7}
+.keys kbd{font-family:var(--mono);background:var(--panel-2);border:1px solid var(--line);
+  border-bottom-width:2px;padding:0 4px;color:var(--fg);font-size:10px}
+
+/* ---- right: reference drawers ---- */
+#drawer{position:fixed;right:0;top:0;bottom:0;width:430px;background:rgba(13,15,13,.96);
+  border-left:1px solid var(--line);display:flex;flex-direction:column;transform:translateX(100%);
+  transition:transform .18s ease}
+#drawer.open{transform:none}
+#tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap}
+#tabs button{flex:1 1 auto;background:none;border:0;border-right:1px solid var(--line);color:var(--fg-dim);
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:9px 4px;cursor:pointer}
+#tabs button:hover{color:var(--fg)}
+#tabs button.on{color:var(--brass);background:var(--panel);box-shadow:inset 0 -2px 0 var(--brass)}
+#tabbody{flex:1 1 auto;overflow-y:auto;padding:14px}
+section.tab{display:none} section.tab.on{display:block}
+section.tab h2{font-family:var(--serif);font-size:14px;margin:0 0 4px;color:var(--brass);font-weight:600}
+section.tab p.note{font-size:11px;color:var(--fg-dim);line-height:1.6;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:11px}
+th,td{text-align:right;padding:3px 5px;border-bottom:1px solid var(--line)}
+th{color:var(--fg-dim);font-weight:400;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:var(--panel)}
+.fld{display:grid;grid-template-columns:1fr 92px;gap:6px;align-items:center;margin-bottom:7px}
+.fld label{font-size:11px;color:var(--fg-dim)}
+.fld input,.fld select{background:var(--panel-2);border:1px solid var(--line);color:var(--fg);
+  font-family:var(--mono);font-size:11px;padding:4px 6px;width:100%;font-variant-numeric:tabular-nums}
+.fld input:focus,.fld select:focus{outline:1px solid var(--brass);border-color:var(--brass)}
+button.act{background:var(--panel-2);border:1px solid var(--brass-dim);color:var(--brass);
+  font-family:var(--mono);font-size:11px;padding:6px 10px;cursor:pointer;letter-spacing:.06em}
+button.act:hover{background:var(--brass-dim);color:#1a1a16}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:var(--panel-2);color:var(--fg-dim);padding:4px 8px;
+  font-size:10.5px;cursor:pointer}
+.chip.on{border-color:var(--brass);color:var(--brass);background:var(--panel)}
+.hr{height:1px;background:var(--line);margin:14px 0}
+.pass{color:var(--live)} .fail{color:var(--bad)}
+.hot{color:var(--warn)} .over{color:var(--bad)}
+.fld input[readonly]{color:var(--brass);background:#101310;border-style:dashed}
+pre.val{font-size:10.5px;line-height:1.65;margin:0;white-space:pre-wrap;color:var(--fg-dim)}
+
+/* ---- transient message ---- */
+#msg{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:rgba(13,15,13,.9);
+  border:1px solid var(--line);border-left:2px solid var(--brass);padding:6px 14px;font-size:12px;
+  opacity:0;transition:opacity .2s;pointer-events:none;max-width:60vw;text-align:center}
+#msg.show{opacity:1}
+#hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);font-size:10.5px;color:var(--fg-dim);
+  letter-spacing:.06em;pointer-events:none;text-align:center}
+#hint kbd{background:var(--panel-2);border:1px solid var(--line);padding:0 4px;color:var(--fg)}
+#officer{position:fixed;right:446px;top:14px;width:214px;border:1px solid var(--brass-dim);
+  background:rgba(13,15,13,.88);padding:9px 10px;font-size:11px;line-height:1.7}
+#officer .lbl{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);margin-bottom:4px}
+#officer.right0{right:14px}
+@media (max-width:980px){#drawer{width:100%} #officer{display:none}}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<aside id="mech">
+  <h1 id="wepName">Karabiner 98 kurz<small id="wepCal">Scharfschiessen &middot; 7,92 &times; 57</small></h1>
+
+  <div class="grp">
+    <div class="lbl" id="sightLbl">Lange Visier</div>
+    <div class="row"><span class="big" id="sightV">300</span><span class="sub" id="sightUnit">metres</span></div>
+    <div class="row sub"><span>bore elevation</span><b id="sightAng">&mdash;</b></div>
+    <div class="row sub"><span>front sight drift</span><b id="driftV">0.0 mm</b></div>
+  </div>
+
+  <div class="grp">
+    <div class="lbl">Verschluss &middot; bolt</div>
+    <div class="row"><span id="boltRot">handle down</span><span class="tag t-ok" id="boltState">READY</span></div>
+    <div id="boltbar"><div id="boltfill"></div></div>
+    <div class="row sub"><span>chamber</span><b id="chamberV">&mdash;</b></div>
+    <div class="row sub"><span>striker</span><b id="cockV">cocked</b></div>
+  </div>
+
+  <div class="grp">
+    <div class="lbl">Sicherung &middot; safety</div>
+    <div class="row"><span id="safetyV" class="tag t-fire">FEUER &middot; left</span></div>
+    <div class="row sub" id="safetyNote">bolt free, trigger live</div>
+  </div>
+
+  <div class="grp">
+    <div class="lbl">Magazin</div>
+    <div id="rounds"></div>
+    <div class="row sub"><span id="magV">5 in magazine</span><b id="beltV">40 loose</b></div>
+  </div>
+
+  <div class="grp">
+    <div class="lbl">Position</div>
+    <div class="row"><span id="stanceV">prone, supported</span></div>
+    <div class="row sub"><span>hold</span><b id="holdV">steady</b></div>
+    <div class="row sub"><span>cant</span><b id="cantV">0.0&deg;</b></div>
+  </div>
+
+  <div class="grp keys">
+    <div class="lbl">Drill</div>
+    <div id="drill">
+      <kbd>1</kbd> lift handle &middot; unlock<br>
+      <kbd>2</kbd> hold to draw rearward<br>
+      <kbd>3</kbd> hold to push forward<br>
+      <kbd>4</kbd> turn handle down &middot; lock<br>
+      <span style="color:var(--brass-dim)">each motion is independent</span>
+    </div>
+  </div>
+</aside>
+
+<div id="officer" class="hidden">
+  <div class="lbl">Range officer</div>
+  <div class="row"><span>lane</span><b id="ofSol">&mdash;</b></div>
+  <div class="row"><span>drop at target</span><b id="ofDrop">&mdash;</b></div>
+  <div class="row"><span>wind drift</span><b id="ofWind">&mdash;</b></div>
+  <div class="row"><span>spin drift</span><b id="ofSpin">&mdash;</b></div>
+  <div class="row"><span>time of flight</span><b id="ofTof">&mdash;</b></div>
+  <div class="row"><span>required lead</span><b id="ofLead">&mdash;</b></div>
+</div>
+
+<div id="msg"></div>
+<div id="hint"><kbd>Tab</kbd> range table &nbsp; <kbd>C</kbd> safety &nbsp; <kbd>[</kbd> <kbd>]</kbd> sight &nbsp; <kbd>L</kbd> clip &nbsp; <kbd>S</kbd> scope &nbsp; <kbd>O</kbd> range officer &nbsp; <kbd>H</kbd> help &nbsp; &mdash; click the view to take the rifle</div>
+
+<aside id="drawer">
+  <nav id="tabs">
+    <button data-tab="card" class="on">Range card</button>
+    <button data-tab="atmo">Weather</button>
+    <button data-tab="ammo">Ammunition</button>
+    <button data-tab="bench">Armourer</button>
+    <button data-tab="range">Range</button>
+    <button data-tab="log">Shot log</button>
+    <button data-tab="val">Checks</button>
+  </nav>
+  <div id="tabbody">
+    <section class="tab on" data-tab="card">
+      <h2>Firing table</h2>
+      <p class="note">Computed live by RK4 integration of the current load through the current
+      air, with the Lange Visier set as shown. Drop is measured from the line of sight.</p>
+      <table><thead><tr><th>Range</th><th>Drop</th><th>Dial</th><th>Drift</th><th>Spin</th><th>V</th><th>Mach</th><th>E</th><th>TOF</th></tr></thead>
+      <tbody id="cardBody"></tbody></table>
+    </section>
+
+    <section class="tab" data-tab="atmo">
+      <h2>Station weather</h2>
+      <p class="note">Density is humid-air density from these values, not a constant. Everything
+      downstream &mdash; drag, Mach number, stability &mdash; follows from it.</p>
+      <div class="fld"><label>Temperature &deg;C</label><input id="aTemp" type="number" step="1" value="15"></div>
+      <div class="fld"><label>Station pressure hPa</label><input id="aPres" type="number" step="1" value="1013"></div>
+      <div class="fld"><label>Relative humidity %</label><input id="aHum" type="number" step="1" value="50"></div>
+      <div class="fld"><label>Altitude m sets pressure</label><input id="aAlt" type="number" step="10" value="0"></div>
+      <div class="hr"></div>
+      <div class="fld"><label>Wind speed m/s</label><input id="aWind" type="number" step="0.5" value="3"></div>
+      <div class="fld"><label>Wind from, clock face</label><input id="aWindDir" type="number" step="1" min="1" max="12" value="9"></div>
+      <div class="fld"><label>Gusting &plusmn; m/s</label><input id="aGust" type="number" step="0.5" value="1.5"></div>
+      <div class="hr"></div>
+      <div class="fld"><label>Latitude &deg;N</label><input id="aLat" type="number" step="1" value="52"></div>
+      <div class="fld"><label>Firing azimuth &deg;</label><input id="aAz" type="number" step="5" value="0"></div>
+      <div class="fld"><label>Coriolis</label><select id="aCor"><option value="1">modelled</option><option value="0">off</option></select></div>
+      <div class="fld"><label>Spin drift</label><select id="aSpin"><option value="1">modelled</option><option value="0">off</option></select></div>
+      <div class="hr"></div>
+      <div class="row sub"><span>air density</span><b id="aRho">&mdash;</b></div>
+      <div class="row sub"><span>speed of sound</span><b id="aSos">&mdash;</b></div>
+      <div class="row sub"><span>density altitude</span><b id="aDa">&mdash;</b></div>
+      <div class="row sub"><span>stability factor Sg</span><b id="aSg">&mdash;</b></div>
+    </section>
+
+    <section class="tab" data-tab="ammo">
+      <h2>Patrone</h2>
+      <p class="note">Service loads as issued, plus a bench where every figure is yours to set.
+      Muzzle velocity is not one of them: it is what the charge does to the bullet in front of
+      it, so a heavier bullet behind the same powder simply leaves slower. The sight leaf does
+      not know what you loaded either &mdash; it commands the angle it was graduated for, so a
+      different load prints exactly the error it should.</p>
+      <div class="chips" id="ammoChips"></div>
+      <div class="fld"><label>Designation</label><input id="mName" value=""></div>
+      <div class="fld"><label>Bullet mass g</label><input id="mMass" type="number" step="0.01"></div>
+      <div class="fld"><label>Powder</label><select id="mPowder"></select></div>
+      <div class="fld"><label>Charge g</label><input id="mCharge" type="number" step="0.05"></div>
+      <div class="fld"><label>Muzzle velocity m/s</label><input id="mMV" type="number" readonly></div>
+      <div class="fld"><label>Drag family</label><select id="mDrag"><option value="G7">G7 boat-tail</option><option value="G1">G1 flat base</option></select></div>
+      <div class="fld"><label>Ballistic coefficient</label><input id="mBC" type="number" step="0.001"></div>
+      <div class="fld"><label>Bullet diameter mm</label><input id="mDia" type="number" step="0.01"></div>
+      <div class="fld"><label>Bullet length mm</label><input id="mLen" type="number" step="0.1"></div>
+      <div class="fld"><label>Core</label><select id="mCore">
+        <option value="0.25">Lead</option>
+        <option value="0.70">Mild steel</option>
+        <option value="1.00">Hardened steel, AP</option>
+        <option value="1.35">Tungsten carbide</option></select></div>
+      <div class="fld"><label>Velocity SD m/s</label><input id="mSD" type="number" step="0.5"></div>
+      <div class="fld"><label>Powder temp m/s per &deg;C</label><input id="mTemp" type="number" step="0.1"></div>
+      <div style="display:flex;gap:7px;margin-top:10px"><button class="act" id="mApply">Load this</button>
+        <button class="act" id="mReset">Restore issue load</button></div>
+      <div class="hr"></div>
+      <div class="row sub"><span>peak chamber pressure</span><b id="mPress">&mdash;</b></div>
+      <div class="row sub"><span>penetration at 100 m</span><b id="mPen">&mdash;</b></div>
+      <div class="row sub"><span>case fill</span><b id="mFill">&mdash;</b></div>
+      <div class="row sub"><span>sectional density</span><b id="mSDen">&mdash;</b></div>
+      <div class="row sub"><span>form factor i</span><b id="mForm">&mdash;</b></div>
+      <div class="row sub"><span>muzzle energy</span><b id="mE">&mdash;</b></div>
+      <div class="row sub"><span>free recoil</span><b id="mRec">&mdash;</b></div>
+    </section>
+
+    <section class="tab" data-tab="bench">
+      <h2>Armourer's bench</h2>
+      <p class="note">The 98k has no windage adjustment in the field. Lateral zero is changed
+      only here, by drifting the front sight blade in its dovetail. Drifting the blade right
+      moves the strike left.</p>
+      <div class="fld"><label>Blade drift mm</label><input id="bDrift" type="number" step="0.1" value="0"></div>
+      <div class="row sub"><span>angular correction</span><b id="bMoa">0.0 MOA</b></div>
+      <div class="row sub"><span>at 300 m</span><b id="bAt300">0.0 cm</b></div>
+      <div class="hr"></div>
+      <h2>Weapon</h2>
+      <div class="fld"><label>In your hands</label><select id="bWeapon"></select></div>
+      <div class="fld"><label>Barrel mm</label><input id="bBarrel" type="number" step="5"></div>
+      <div class="row sub"><span>cartridge</span><b id="bCal">&mdash;</b></div>
+      <div class="row sub"><span>action</span><b id="bAction">&mdash;</b></div>
+      <div class="hr"></div>
+      <div class="fld"><label>Optic</label><select id="bOptic"><option value="irons">Lange Visier, irons</option><option value="zf41">ZF41 1.5&times;</option><option value="mil">ZF-D 3-18&times; mil</option></select></div>
+      <div class="fld"><label>Mechanical precision MOA</label><input id="bPrec" type="number" step="0.1" value="1.5"></div>
+      <div class="fld"><label>Barrel twist mm/turn</label><input id="bTwist" type="number" step="5" value="240"></div>
+      <div class="fld"><label>Sight height mm</label><input id="bSH" type="number" step="0.5" value="25"></div>
+      <div class="hr"></div>
+      <h2>Drill</h2>
+      <div class="fld"><label>Short-stroke stoppages</label><select id="bJam"><option value="1">modelled</option><option value="0">off</option></select></div>
+      <div class="fld"><label>Bolt travel keys</label><select id="bHold"><option value="1">hold to stroke</option><option value="0">tap completes stroke</option></select></div>
+      <div class="fld"><label>Field of view &deg;</label><input id="bFov" type="number" step="1" value="14"></div>
+    </section>
+
+    <section class="tab" data-tab="range">
+      <h2>Range wizard</h2>
+      <p class="note">Put what you like where you like. Targets are kept in range order, and a
+      mover traverses about the lane you give it. Everything downstream &mdash; the firing table,
+      the range officer, mil ranging &mdash; follows whatever is standing out there.</p>
+      <div class="fld"><label>Target</label><select id="wType"></select></div>
+      <div class="fld"><label>Range m</label><input id="wRange" type="number" step="25" value="300"></div>
+      <div class="fld"><label>Lane, m right of centre</label><input id="wOff" type="number" step="1" value="0"></div>
+      <div class="fld"><label>Traverse &plusmn; m, 0 for static</label><input id="wAmp" type="number" step="1" value="0"></div>
+      <div class="fld"><label>Traverse speed m/s</label><input id="wSpeed" type="number" step="0.1" value="1.5"></div>
+      <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
+        <button class="act" id="wAdd">Place it</button>
+        <button class="act" id="wClear">Clear the range</button>
+        <button class="act" id="wReset">Standard range</button>
+      </div>
+      <div class="hr"></div>
+      <div class="fld"><label>Range markings</label><select id="wMarks">
+        <option value="1">shown</option><option value="0">hidden</option></select></div>
+      <div class="hr"></div>
+      <h2>Standing on the range</h2>
+      <table><thead><tr><th>Range</th><th>Lane</th><th>Target</th><th>Traverse</th><th></th></tr></thead>
+      <tbody id="wList"></tbody></table>
+    </section>
+
+    <section class="tab" data-tab="log">
+      <h2>Shot log</h2>
+      <p class="note">Call your own shots. Every round fired, newest first. Vert and Horz are
+      the strike measured from where the sights were pointed.</p>
+      <table><thead><tr><th>#</th><th>Rge</th><th>Leaf</th><th>TOF</th><th>V imp</th><th>Energy</th><th>Vert</th><th>Horz</th><th></th></tr></thead>
+      <tbody id="logBody"></tbody></table>
+    </section>
+
+    <section class="tab" data-tab="val">
+      <h2>Model checks</h2>
+      <p class="note">Run against published 7,92 &times; 57 s.S. data and against the solver's own
+      internal consistency. These run once at load; the same output goes to the console.</p>
+      <pre class="val" id="valOut">running...</pre>
+      <button class="act" id="valRerun" style="margin-top:12px">Run again</button>
+    </section>
+  </div>
+</aside>
+<script>
+"use strict";
+/* ==========================================================================
+   1. BALLISTIC CORE
+   Frame: x downrange, y right, z up. SI units everywhere.
+   ========================================================================== */
+
+const G0 = 9.80665;              // m/s^2
+const OMEGA_E = 7.292115e-5;     // rad/s, earth rotation
+const RD = 287.058, RV = 461.495;
+const LB_IN2_TO_KG_M2 = 703.0696;   // 1 lb/in^2 expressed as kg/m^2
+const MOA = Math.PI / (180 * 60);
+/* Line of sight above the bore axis on a 98k: barrel radius at the muzzle plus
+   the front sight band and blade. This is what the leaf was graduated around. */
+const REF_SH = 0.025;
+const BARREL_R = 0.00725;           // muzzle outside radius
+const SIGHT_RADIUS = 0.503;         // rear notch to front blade
+const EYE_REAR = 0.45;              // eye to rear notch, head on the comb
+
+const d2r = d => d * Math.PI / 180;
+const r2d = r => r * 180 / Math.PI;
+
+/* -- standard drag functions, Cd against Mach -----------------------------
+   Tabulated; interpolated linearly in Mach. The transonic hump between
+   M 0.9 and M 1.2 is the whole reason a single constant Cd cannot work. */
+const DRAG = {
+  G7: [[0.00,0.1198],[0.05,0.1197],[0.30,0.1196],[0.50,0.1193],[0.60,0.1169],
+       [0.70,0.1176],[0.80,0.1215],[0.85,0.1265],[0.875,0.1303],[0.90,0.1341],
+       [0.925,0.1403],[0.95,0.1510],[0.975,0.1725],[1.00,0.2093],[1.025,0.2519],
+       [1.05,0.2834],[1.075,0.3064],[1.10,0.3199],[1.125,0.3290],[1.15,0.3340],
+       [1.20,0.3378],[1.25,0.3356],[1.30,0.3305],[1.40,0.3193],[1.50,0.3079],
+       [1.60,0.2975],[1.80,0.2790],[2.00,0.2642],[2.20,0.2519],[2.50,0.2369],
+       [3.00,0.2178],[3.50,0.2047],[4.00,0.1944],[5.00,0.1797]],
+  G1: [[0.00,0.2629],[0.05,0.2558],[0.10,0.2487],[0.20,0.2394],[0.30,0.2344],
+       [0.40,0.2278],[0.50,0.2305],[0.60,0.2842],[0.70,0.3379],[0.725,0.3785],
+       [0.75,0.4032],[0.775,0.4235],[0.80,0.4405],[0.825,0.4566],[0.85,0.4724],
+       [0.875,0.4882],[0.90,0.5041],[0.925,0.5283],[0.95,0.5641],[0.975,0.6150],
+       [1.00,0.6613],[1.025,0.6904],[1.05,0.7055],[1.075,0.7129],[1.10,0.7154],
+       [1.15,0.7103],[1.20,0.6998],[1.30,0.6753],[1.40,0.6495],[1.50,0.6255],
+       [1.60,0.6045],[1.80,0.5699],[2.00,0.5429],[2.20,0.5216],[2.50,0.4988],
+       [3.00,0.4752],[3.50,0.4625],[4.00,0.4552],[5.00,0.4461]]
+};
+function cdStd(table, mach){
+  const t = table;
+  if (mach <= t[0][0]) return t[0][1];
+  const last = t.length - 1;
+  if (mach >= t[last][0]) return t[last][1];
+  let lo = 0, hi = last;
+  while (hi - lo > 1){ const mid = (lo + hi) >> 1; if (t[mid][0] <= mach) lo = mid; else hi = mid; }
+  const f = (mach - t[lo][0]) / (t[hi][0] - t[lo][0]);
+  return t[lo][1] + f * (t[hi][1] - t[lo][1]);
+}
+
+/* -- atmosphere ---------------------------------------------------------- */
+function saturationPressure(tC){           // Buck equation, hPa
+  return 6.1121 * Math.exp((18.678 - tC / 234.5) * (tC / (257.14 + tC)));
+}
+function airDensity(tC, pHpa, rhPct){      // humid air, kg/m^3
+  const T = tC + 273.15;
+  const pv = (rhPct / 100) * saturationPressure(tC);
+  const pd = pHpa - pv;
+  return (pd * 100) / (RD * T) + (pv * 100) / (RV * T);
+}
+function speedOfSound(tC){ return 20.0468 * Math.sqrt(tC + 273.15); }
+function pressureAtAltitude(h){ return 1013.25 * Math.pow(1 - 2.25577e-5 * h, 5.25588); }
+function densityAltitude(rho){             // metres, inverted ISA
+  return (1 - Math.pow(rho / 1.225, 1 / 4.2559)) / 2.25577e-5 * 1.0;
+}
+
+/* -- gyroscopic stability, Miller twist rule ----------------------------- */
+function millerSg(ammo, twist_m, rho, mv){
+  const dIn = ammo.dia / 0.0254;
+  const lCal = (ammo.len / ammo.dia);
+  const tCal = (twist_m / 0.0254) / dIn;
+  const grains = ammo.mass * 15432.358;
+  let sg = 30 * grains / (tCal * tCal * Math.pow(dIn, 3) * lCal * (1 + lCal * lCal));
+  sg *= Math.pow((mv / 0.3048) / 2800, 1 / 3);   // velocity correction
+  sg *= 1.225 / rho;                             // air density correction
+  return sg;
+}
+
+/* -- the integrator ------------------------------------------------------
+   Classical RK4 on the 6-state [pos, vel]. Drag acts on velocity relative
+   to the air mass, so wind is a genuine vector and not a lateral fudge. */
+function makeEnv(cfg){
+  const rho = airDensity(cfg.tempC, cfg.pressHpa, cfg.humidity);
+  const sos = speedOfSound(cfg.tempC);
+  // wind "from the 9 o'clock" means it blows towards 3 o'clock, i.e. to the right
+  // 12 o'clock is downrange, 3 is to the right. A wind "from 9" blows to the right.
+  const clock = cfg.windClock || 12;
+  const fromAngle = (clock % 12) * Math.PI / 6;
+  const wx = -cfg.windSpeed * Math.cos(fromAngle);
+  const wy = -cfg.windSpeed * Math.sin(fromAngle);
+  const lat = d2r(cfg.latitude), az = d2r(cfg.azimuth);
+  return {
+    rho, sos, wind: [wx, wy, 0],
+    coriolis: cfg.coriolis ? { lat, az } : null,
+    spin: !!cfg.spinDrift
+  };
+}
+function coriolisAccel(v, cor){
+  // Step out to ENU (right handed), apply -2 omega x v, come back.
+  const sa = Math.sin(cor.az), ca = Math.cos(cor.az);
+  const fx = [sa, ca, 0];            // downrange unit vector in ENU
+  const ry = [ca, -sa, 0];           // right
+  const uz = [0, 0, 1];
+  const ve = v[0]*fx[0] + v[1]*ry[0] + v[2]*uz[0];
+  const vn = v[0]*fx[1] + v[1]*ry[1] + v[2]*uz[1];
+  const vu = v[0]*fx[2] + v[1]*ry[2] + v[2]*uz[2];
+  const oe = 0, on = OMEGA_E * Math.cos(cor.lat), ou = OMEGA_E * Math.sin(cor.lat);
+  const ae = -2 * (on * vu - ou * vn);
+  const an = -2 * (ou * ve - oe * vu);
+  const au = -2 * (oe * vn - on * ve);
+  return [ae*fx[0] + an*fx[1] + au*fx[2],
+          ae*ry[0] + an*ry[1] + au*ry[2],
+          ae*uz[0] + an*uz[1] + au*uz[2]];
+}
+function accel(pos, vel, ammo, env){
+  const vx = vel[0] - env.wind[0], vy = vel[1] - env.wind[1], vz = vel[2] - env.wind[2];
+  const v = Math.hypot(vx, vy, vz);
+  let ax = 0, ay = 0, az = -G0;
+  if (v > 1e-6){
+    const cd = cdStd(DRAG[ammo.drag], v / env.sos);
+    // a = (pi/8) rho v^2 Cd / (BC * 703.07)   -- BC in lb/in^2
+    const k = (Math.PI / 8) * env.rho * v * cd / (ammo.bc * LB_IN2_TO_KG_M2);
+    ax -= k * vx; ay -= k * vy; az -= k * vz;
+  }
+  if (env.coriolis){
+    const c = coriolisAccel(vel, env.coriolis);
+    ax += c[0]; ay += c[1]; az += c[2];
+  }
+  return [ax, ay, az];
+}
+
+/* Fire one bullet. Returns the sampled path plus a crossing lookup.
+   elev / azim are the BORE angles; the muzzle sits sightHeight below the
+   line of sight, which is the geometry that makes a zero a zero. */
+function trajectory(opts){
+  const { ammo, env, elev, azim, mv, sightHeight, maxRange, maxTime, dt } = opts;
+  const step = dt || 5e-4;
+  const tmax = maxTime || 12;
+  const limit = maxRange || 2200;
+
+  const ce = Math.cos(elev), se = Math.sin(elev);
+  let pos = [0, 0, -sightHeight];
+  let vel = [mv * ce * Math.cos(azim), mv * ce * Math.sin(azim), mv * se];
+  let t = 0;
+
+  // spin drift is a function of time of flight, applied as a lateral offset
+  const sg = opts.sg || 0;
+  const spinAt = env.spin && sg > 0
+    ? (tt) => 1.25 * (sg + 1.2) * Math.pow(tt, 1.83) * 0.0254
+    : () => 0;
+
+  const path = [{ t: 0, p: pos.slice(), v: vel.slice(), sd: 0 }];
+  let guard = 0;
+  while (t < tmax && pos[0] < limit && guard++ < 400000){
+    const p0 = pos, v0 = vel;
+    const a1 = accel(p0, v0, ammo, env);
+    const p2 = [p0[0]+v0[0]*step/2, p0[1]+v0[1]*step/2, p0[2]+v0[2]*step/2];
+    const v2 = [v0[0]+a1[0]*step/2, v0[1]+a1[1]*step/2, v0[2]+a1[2]*step/2];
+    const a2 = accel(p2, v2, ammo, env);
+    const p3 = [p0[0]+v2[0]*step/2, p0[1]+v2[1]*step/2, p0[2]+v2[2]*step/2];
+    const v3 = [v0[0]+a2[0]*step/2, v0[1]+a2[1]*step/2, v0[2]+a2[2]*step/2];
+    const a3 = accel(p3, v3, ammo, env);
+    const p4 = [p0[0]+v3[0]*step, p0[1]+v3[1]*step, p0[2]+v3[2]*step];
+    const v4 = [v0[0]+a3[0]*step, v0[1]+a3[1]*step, v0[2]+a3[2]*step];
+    const a4 = accel(p4, v4, ammo, env);
+
+    pos = [p0[0] + step/6*(v0[0]+2*v2[0]+2*v3[0]+v4[0]),
+           p0[1] + step/6*(v0[1]+2*v2[1]+2*v3[1]+v4[1]),
+           p0[2] + step/6*(v0[2]+2*v2[2]+2*v3[2]+v4[2])];
+    vel = [v0[0] + step/6*(a1[0]+2*a2[0]+2*a3[0]+a4[0]),
+           v0[1] + step/6*(a1[1]+2*a2[1]+2*a3[1]+a4[1]),
+           v0[2] + step/6*(a1[2]+2*a2[2]+2*a3[2]+a4[2])];
+    t += step;
+    path.push({ t, p: pos.slice(), v: vel.slice(), sd: spinAt(t) });
+  }
+  return {
+    path,
+    /* Interpolated state where the bullet crosses a vertical plane at range x.
+       Lateral value already carries the spin drift. */
+    at(x){
+      if (x <= 0 || path[path.length-1].p[0] < x) return null;
+      let lo = 0, hi = path.length - 1;
+      while (hi - lo > 1){ const m = (lo+hi)>>1; if (path[m].p[0] <= x) lo = m; else hi = m; }
+      const A = path[lo], B = path[hi];
+      const f = (x - A.p[0]) / (B.p[0] - A.p[0] || 1);
+      const lerp = (a, b) => a + f * (b - a);
+      const sd = lerp(A.sd, B.sd);
+      return {
+        t: lerp(A.t, B.t),
+        y: lerp(A.p[1], B.p[1]) + sd,
+        z: lerp(A.p[2], B.p[2]),
+        sd,
+        vx: lerp(A.v[0], B.v[0]), vy: lerp(A.v[1], B.v[1]), vz: lerp(A.v[2], B.v[2]),
+        speed: Math.hypot(lerp(A.v[0],B.v[0]), lerp(A.v[1],B.v[1]), lerp(A.v[2],B.v[2]))
+      };
+    }
+  };
+}
+
+/* Bore elevation that puts the strike on the line of sight at range R.
+   Secant iteration; the miss distance is smooth and monotone in the angle,
+   so it converges in four or five passes. */
+function solveElevation(range, ammo, env, mv, sightHeight, sg){
+  const miss = (e) => {
+    const tr = trajectory({ ammo, env, elev: e, azim: 0, mv, sightHeight,
+                            maxRange: range + 5, dt: 1e-3, sg });
+    const c = tr.at(range);
+    return c ? c.z : 1e6;
+  };
+  let e0 = Math.atan2(sightHeight, range) + 0.0005;
+  let e1 = e0 + 0.004;
+  let f0 = miss(e0), f1 = miss(e1);
+  for (let i = 0; i < 24 && Math.abs(f1) > 0.002; i++){
+    const de = f1 - f0;
+    if (Math.abs(de) < 1e-12) break;
+    const e2 = e1 - f1 * (e1 - e0) / de;
+    e0 = e1; f0 = f1; e1 = Math.max(0, Math.min(0.35, e2)); f1 = miss(e1);
+  }
+  return e1;
+}
+
+/* ==========================================================================
+   2. AMMUNITION
+   ========================================================================== */
+const AMMO_LIB = [
+  { id:"sS",  cal:"792x57", name:"s.S. Patrone",        mass:0.01280, mv:760, drag:"G7", bc:0.280,
+    dia:0.00820, len:0.0353, sd:8,  tempSens:0.80, pen:0.25,
+    note:"schweres Spitzgeschoss, 1934 issue. What the Lange Visier is graduated for." },
+  { id:"S",   cal:"792x57", name:"S-Patrone (1905)",    mass:0.00990, mv:880, drag:"G7", bc:0.200,
+    dia:0.00820, len:0.0283, sd:9,  tempSens:1.00, pen:0.25,
+    note:"Light spitzer. Flat early, sheds velocity fast, shoots high on a 98k leaf." },
+  { id:"SmE", cal:"792x57", name:"S.m.E. (steel core)", mass:0.01155, mv:785, drag:"G7", bc:0.255,
+    dia:0.00820, len:0.0350, sd:9,  tempSens:0.90, pen:0.70,
+    note:"Wartime iron-core economy load." },
+  { id:"SmK", cal:"792x57", name:"S.m.K. (AP)",         mass:0.01180, mv:785, drag:"G7", bc:0.250,
+    dia:0.00820, len:0.0355, sd:9,  tempSens:0.90, pen:1.00,
+    note:"Hardened steel core, armour piercing." },
+  { id:"SmKH",cal:"792x57", name:"S.m.K.H. (Hartkern)",   mass:0.01160, mv:0, drag:"G7", bc:0.252,
+    dia:0.00820, len:0.0352, sd:9,  tempSens:0.90, pen:1.35,
+    powder:"ns", charge:0.00283,
+    note:"Spitzgeschoss mit Hartkern: tungsten carbide core, the best armour-piercing "
+       + "round the cartridge had. Tungsten shortages pulled it out of small-arms issue from 1942." },
+  { id:"mod", cal:"792x57", name:"196 gr soft point",   mass:0.01270, mv:730, drag:"G1", bc:0.400,
+    dia:0.00823, len:0.0320, sd:6,  tempSens:0.70, pen:0.18,
+    note:"Modern commercial. Flat base, so G1 is the right family." },
+
+  { id:"m855", cal:"556x45", name:"M855 5,56 NATO",      mass:0.00400, drag:"G7", bc:0.151,
+    dia:0.00570, len:0.0230, sd:7, tempSens:0.90, pen:0.45,
+    powder:"ns", charge:0.00178,
+    note:"NATO ball with a mild steel penetrator tip. 880 m/s from a 368 mm barrel." },
+  { id:"mk262",cal:"556x45", name:"Mk262 77 gr OTM",     mass:0.00499, drag:"G7", bc:0.191,
+    dia:0.00570, len:0.0254, sd:6, tempSens:0.90, pen:0.22,
+    powder:"ns", charge:0.00172,
+    note:"Heavy open-tip match. The round that makes a short barrel worth shooting far." },
+  { id:"9fmj", cal:"9x19",   name:"9 mm 115 gr FMJ",     mass:0.00745, drag:"G1", bc:0.125,
+    dia:0.00901, len:0.0155, sd:5, tempSens:0.50, pen:0.20,
+    powder:"ns", charge:0.00040,
+    note:"Service ball. Barely supersonic at the muzzle and subsonic well inside 50 m." },
+  { id:"9sub", cal:"9x19",   name:"9 mm 147 gr subsonic",mass:0.00953, drag:"G1", bc:0.191,
+    dia:0.00901, len:0.0185, sd:4, tempSens:0.50, pen:0.18,
+    powder:"ns", charge:0.00026,
+    note:"Heavy and slow on purpose: never breaks the sound barrier, so there is no crack." },
+  { id:"b32",  cal:"145x114",name:"B-32 API",            mass:0.06440, drag:"G7", bc:0.320,
+    dia:0.01488, len:0.0510, sd:8, tempSens:1.20, pen:1.00,
+    powder:"ns", charge:0.03000,
+    note:"Armour-piercing incendiary, hardened steel core. 64 grams at 980 m/s." }
+];
+
+/* The rack. Barrel, twist, sight height, magazine, action and mass all come
+   from here, so choosing a weapon reconfigures the model rather than merely
+   swapping the cartridge. */
+const WEAPONS = [
+  { id:"k98k",   name:"Karabiner 98 kurz", cal:"792x57",  barrel:0.600, twist:0.240,
+    sightH:0.025, mag:5,  action:"bolt", precision:1.5, mass:4.0,  ammo:"sS",
+    irons:{ name:"Lange Visier", min:100, max:2000, step:100 }, optics:["irons","zf41","mil"] },
+  { id:"hk416",  name:"HK416 D14.5RS",     cal:"556x45",  barrel:0.368, twist:0.178,
+    sightH:0.065, mag:30, action:"semi", precision:1.2, mass:3.6,  ammo:"m855",
+    irons:{ name:"Drum sight",   min:100, max:400,  step:100 }, front:"wings",
+    optics:["irons","mil"] },
+  { id:"mp5",    name:"MP5A3",             cal:"9x19",    barrel:0.225, twist:0.254,
+    sightH:0.055, mag:30, action:"semi", precision:3.0, mass:3.0,  ammo:"9fmj",
+    irons:{ name:"Rotary drum",  min:25,  max:100,  step:25  }, front:"hood",
+    optics:["irons","mil"] },
+  { id:"snipex", name:"Snipex Alligator",  cal:"145x114", barrel:1.200, twist:0.420,
+    sightH:0.075, mag:1,  action:"bolt", precision:1.0, mass:25.0, ammo:"b32",
+    irons:null, optics:["mil"] }
+];
+function weapon(){ return WEAPONS.find(w => w.id === S.weapon) || WEAPONS[0]; }
+const ammoFor = cal => AMMO_LIB.filter(a => a.cal === cal);
+const cloneAmmo = a => JSON.parse(JSON.stringify(a));
+
+/* ==========================================================================
+   2b. INTERNAL BALLISTICS
+   Muzzle velocity is not something you type in: it is what the charge does to
+   the bullet you put in front of it. Energy balance, with the gas treated as
+   moving at half the bullet's speed (the Lagrange correction), which is why a
+   bigger charge gives steadily less back:
+
+       eta * E_powder * C  =  1/2 * (m + C/2) * v^2
+
+   eta is the fraction of the chemical energy that ends up as bullet kinetic
+   energy. Calibrated against the s.S. Patrone: 12.8 g at 760 m/s on 2.85 g of
+   single-base powder is 3.7 kJ out of 11.4 kJ burnt, so eta is about a third,
+   which is where service rifles actually sit.
+   ========================================================================== */
+const POWDERS = [
+  { id:"ns",   name:"Single base, nitrocellulose", E:4.00e6, beta:1.00, bulk:0.95 },
+  { id:"db",   name:"Double base, nitroglycerine", E:4.60e6, beta:1.22, bulk:1.00 },
+  { id:"prog", name:"Progressive rifle powder",    E:4.20e6, beta:0.78, bulk:0.92 }
+];
+const powderBy = id => POWDERS.find(p => p.id === id) || POWDERS[0];
+
+/* Each cartridge carries its own efficiency, fitted to its real load data: the
+   published charge, bullet and velocity out of a stated barrel. One constant
+   cannot span a pistol and an anti-materiel rifle, and pretending otherwise
+   put the 9 mm charge 45% out. Barrel length then moves that efficiency from
+   the cartridge's own reference length, because a longer barrel captures more
+   expansion work. */
+const BARREL_EXP = 0.35;
+const CARTRIDGES = {
+  "792x57":  { name:"7,92 × 57 Mauser",  caseCC:4.09, pService:300e6, pMax:390e6,
+               eta:0.360, refBarrel:0.600, massRef:0.01280, chargeRef:0.00285 },
+  "556x45":  { name:"5,56 × 45 NATO",    caseCC:1.85, pService:380e6, pMax:430e6,
+               eta:0.266, refBarrel:0.368, massRef:0.00400, chargeRef:0.00178 },
+  "9x19":    { name:"9 × 19 Parabellum", caseCC:0.86, pService:210e6, pMax:235e6,
+               eta:0.364, refBarrel:0.225, massRef:0.00745, chargeRef:0.00040 },
+  "145x114": { name:"14,5 × 114",        caseCC:42.0, pService:330e6, pMax:360e6,
+               eta:0.318, refBarrel:1.200, massRef:0.06440, chargeRef:0.03000 }
+};
+const cartridgeBy = cal => CARTRIDGES[cal] || CARTRIDGES["792x57"];
+const etaFor = (cal, barrel) => {
+  const ct = cartridgeBy(cal);
+  return ct.eta * Math.pow((barrel || ct.refBarrel) / ct.refBarrel, BARREL_EXP);
+};
+const CASE_CC = 4.09;
+const P_CIP = 390e6;
+const P_PROOF = 510e6;
+
+function mvFromCharge(charge, mass, powderId, cal, barrel){
+  if (!(charge > 0) || !(mass > 0)) return 0;
+  const E = powderBy(powderId).E;
+  return Math.sqrt(2 * etaFor(cal, barrel) * E * charge / (mass + charge/2));
+}
+/* Inverted, so a load can be given the charge that actually produces its
+   published muzzle velocity instead of a guessed one. */
+function chargeFromMV(mv, mass, powderId, cal, barrel){
+  const E = powderBy(powderId).E;
+  const denom = 2 * etaFor(cal, barrel) * E - mv*mv / 2;
+  return denom > 0 ? mv*mv*mass / denom : 0;
+}
+/* Peak pressure, scaled off each cartridge's own service load: steeply with
+   charge, more gently with the bullet sitting in the way. */
+function peakPressure(charge, mass, powderId, cal){
+  if (!(charge > 0)) return 0;
+  const ct = cartridgeBy(cal);
+  return ct.pService
+       * Math.pow(charge / ct.chargeRef, 1.9)
+       * Math.pow(mass / ct.massRef, 0.35)
+       * powderBy(powderId).beta;
+}
+/* Penetration of rolled homogeneous steel, De Marre in its usual form, with a
+   factor for what the core is made of (the formula assumes a hard AP shot, so
+   a lead-cored ball needs knocking down). The constant is calibrated against
+   the S.m.K.: hardened steel core, 11.8 g at about 730 m/s on arrival, which
+   went through roughly 11 mm of plate at 100 m. It was fitted to a 7,92 mm
+   bullet and under-reads across a large change of calibre. */
+const DEMARRE_K = 68400;
+function penetrationMM(ammo, v){
+  if (!(v > 0) || !(ammo.mass > 0) || !(ammo.dia > 0)) return 0;
+  const pf = ammo.pen != null ? ammo.pen : 0.25;
+  const P = Math.pow(v * Math.sqrt(ammo.mass) / (DEMARRE_K * Math.pow(ammo.dia, 0.75)), 1/0.7);
+  return pf * P * 1000;
+}
+const caseFill = (charge, powderId, cal) =>
+  charge*1000 / (cartridgeBy(cal).caseCC * powderBy(powderId).bulk);
+
+/* ==========================================================================
+   3. STATE
+   ========================================================================== */
+const STANCES = [
+  { name:"prone, supported", eye:0.38, sway:0.22, drift:0.10 },
+  { name:"prone",            eye:0.35, sway:0.55, drift:0.30 },
+  { name:"kneeling",         eye:0.95, sway:1.35, drift:0.75 },
+  { name:"standing",         eye:1.52, sway:2.60, drift:1.60 }
+];
+
+const S = {
+  cfg:{
+    tempC:15, pressHpa:1013, humidity:50, altitude:0,
+    windSpeed:3, windClock:9, gust:1.5,
+    latitude:52, azimuth:0, coriolis:1, spinDrift:1,
+    precisionMOA:1.5, twist:0.240, sightHeight:REF_SH,
+    jams:1, holdToStroke:1, fovDeg:14
+  },
+  weapon:"k98k",
+  ammo: cloneAmmo(AMMO_LIB[0]),
+  bench: cloneAmmo(AMMO_LIB[0]),
+  benchId:"sS",
+  rifle:{
+    rot:0, rotTarget:0,          // 0 handle down and locked, 1 handle up
+    travel:0, travelTarget:0,    // 0 fully forward, 1 fully rearward
+    chamber:null,                // null | {state:"live"|"spent", ammo}
+    raceway:null,                // a case that was extracted but not thrown clear
+    mag:[], loose:40, safety:0, cocked:true, optic:"irons", mils:0,
+    auto:false, autoReturning:false,
+    striker:1,                   // 1 = cocking piece held back, 0 = struck forward
+    sight:300, drift:0,
+    heldOpen:false
+  },
+  // azIn/elIn are where the shooter is pointing; az/el add this instant's wobble
+  aim:{ azIn:0, elIn:0, az:0, el:0, swayAz:0, swayEl:0, cant:0,
+        recEl:0, recAz:0, recVel:0, recVelAz:0,
+        hold:false, holdT:0, fatigue:0, t:0, stance:0 },
+  trigger:{ pull:0, down:false, lastMove:0 },
+  scope:false, scopeFov:3.6, milMag:6, officer:false, showTrace:false, showRange:true,
+  shots:[], impacts:[], traces:[], splashes:[],
+  gustPhase:0, windNow:3,
+  env:null, sightTable:null, zf41Table:null, milZero:0, sg:0, lastSolution:null
+};
+
+/* The Lange Visier leaf. Each graduation commands a fixed bore elevation,
+   solved once under the conditions the sight was graduated for, with the
+   load it was graduated for. At runtime that angle is used as-is: load
+   something else, or shoot in different air, and the error is real. */
+const REF_ENV = makeEnv({ tempC:15, pressHpa:1013.25, humidity:0, windSpeed:0,
+                          windClock:12, latitude:0, azimuth:0, coriolis:0, spinDrift:0 });
+function buildSightTable(ammo, sightH, twist, min, max, step){
+  const sg = millerSg(ammo, twist, REF_ENV.rho, ammo.mv);
+  const t = {};
+  for (let r = min; r <= max; r += step)
+    t[r] = solveElevation(r, ammo, REF_ENV, ammo.mv, sightH, sg);
+  return t;
+}
+
+/* Zielfernrohr 41. A 1.5x glass clamped to the rear sight base, with its own
+   elevation drum graduated 100-800. Because it sits on top of that base its
+   optical axis is far higher over the bore than the iron notch, so it needs a
+   zeroing table of its own: use the leaf's angles through the ZF41 and every
+   shot lands high. The long eye relief is why the field of view is a small
+   bright disc rather than a full screen of glass. */
+const ZF41_SH = 0.048, ZF41_MAG = 1.5, ZF41_MAX = 800;
+
+/* ZF-D 3-18x. The anachronism in the rack, and the only sight here that does
+   not work off a range graduation: you dial angular elevation in mils against
+   a 100 m zero and hold wind on the reticle. First focal plane, so the mil
+   subtensions stay true at every magnification and you can range off them. */
+const MIL_SH = 0.055, MIL_MAG_MIN = 3, MIL_MAG_MAX = 18;
+const usingZF41   = () => S.rifle.optic === "zf41";
+const usingMil    = () => S.rifle.optic === "mil";
+const sightHeight = () => usingMil()  ? weapon().sightH + 0.030
+                        : usingZF41() ? ZF41_SH
+                        : weapon().sightH;
+const sightTable  = () => usingZF41() ? S.zf41Table : weapon().ironTable;
+// what the fitted sight is graduated in: span and step, not always 100 m
+const sightSpan   = () => usingZF41() ? { min:100, max:ZF41_MAX, step:100 }
+                        : (weapon().irons || { min:100, max:2000, step:100 });
+const sightAngle  = () => {
+  // the mil scope commands its zero plus whatever you have dialled on
+  if (usingMil()) return weapon().milZero + S.rifle.mils / 1000;
+  const t = sightTable(), v = t[S.rifle.sight];
+  if (v !== undefined) return v;
+  // never hand NaN to the integrator: snap to the nearest graduation on the sight
+  const sp = sightSpan();
+  const snapped = Math.max(sp.min, Math.min(sp.max, Math.round(S.rifle.sight / sp.step) * sp.step));
+  return t[snapped] !== undefined ? t[snapped] : t[sp.min];
+};
+const sightMax    = () => sightSpan().max;
+
+function refreshEnv(){
+  const c = S.cfg;
+  S.env = makeEnv({ tempC:c.tempC, pressHpa:c.pressHpa, humidity:c.humidity,
+                    windSpeed:S.windNow, windClock:c.windClock,
+                    latitude:c.latitude, azimuth:c.azimuth,
+                    coriolis:c.coriolis, spinDrift:c.spinDrift });
+  S.sg = millerSg(S.ammo, c.twist, S.env.rho, effectiveMV(false));
+}
+function effectiveMV(withNoise){
+  const a = S.ammo;
+  let mv = a.mv + (S.cfg.tempC - 21) * a.tempSens;
+  if (withNoise) mv += gauss() * a.sd;
+  return mv;
+}
+let gaussSpare = null;
+function gauss(){
+  if (gaussSpare !== null){ const v = gaussSpare; gaussSpare = null; return v; }
+  let u, v, s;
+  do { u = Math.random()*2-1; v = Math.random()*2-1; s = u*u + v*v; } while (s >= 1 || s === 0);
+  const f = Math.sqrt(-2 * Math.log(s) / s);
+  gaussSpare = v * f; return u * f;
+}
+
+/* ==========================================================================
+   4. THE RANGE
+   ========================================================================== */
+/* Lanes are offset across the range rather than stacked on one centreline, so
+   nothing hides behind the frame in front of it and each has to be traversed
+   to. "off" is the lane's lateral position; movers traverse about it. */
+const TARGETS = [
+  { id:0, range:100,  off: -7, w:0.60, h:0.60, base:1.00, kind:"paper",
+    label:"Zeroing frame", mover:null, holes:[] },
+  { id:8, range:100,  off:2.4, w:0.50, h:1.75, base:0.00, kind:"human",
+    label:"Figure, 1.75 m", mover:null },
+  { id:1, range:200, armour:10,  off:  6, w:0.45, h:0.45, base:1.05, kind:"steel",
+    label:"Gong", mover:null },
+  { id:2, range:250,  off:-16, w:0.60, h:0.60, base:1.00, kind:"paper",
+    label:"Grouping frame", mover:null, holes:[] },
+  { id:3, range:300,  off: 12, w:0.45, h:0.75, base:0.00, kind:"figure",
+    label:"Traversing figure", mover:{ amp:9, speed:1.2, phase:0 } },
+  { id:4, range:400, armour:10,  off:-15, w:0.50, h:0.50, base:1.00, kind:"steel",
+    label:"Gong, traversing", mover:{ amp:11, speed:1.9, phase:7 } },
+  { id:9, range:500,  off: 16, w:0.50, h:1.75, base:0.00, kind:"human",
+    label:"Figure, 1.75 m", mover:null },
+  { id:5, range:600,  off: 10, w:0.50, h:0.95, base:0.00, kind:"figure",
+    label:"Figure, traversing", mover:{ amp:16, speed:2.6, phase:3 } },
+  { id:6, range:800, armour:12,  off:-13, w:1.00, h:1.00, base:0.80, kind:"steel",
+    label:"Plate, traversing", mover:{ amp:20, speed:1.7, phase:11 } },
+  { id:7, range:1000, armour:20, off:  5, w:1.50, h:1.50, base:0.80, kind:"steel",
+    label:"Long plate", mover:null },
+  { id:10,range:1000, off: 40, w:0.50, h:1.75, base:0.00, kind:"human",
+    label:"Figure, 1.75 m", mover:null },
+  { id:11,range:1500, armour:20, off:-22, w:1.50, h:1.50, base:0.80, kind:"steel",
+    label:"Long plate", mover:null },
+  { id:12,range:2000, armour:12, off: 14, w:2.00, h:2.00, base:0.90, kind:"steel",
+    label:"Extreme plate", mover:null }
+];
+/* A man is 1.75 m whatever the range, so his angular height is the cleanest
+   scale there is: 17.5 mil at 100 m, 1.75 mil at 1000. That is also exactly
+   the relationship the mil reticle ranges with. */
+const TARGET_TYPES = [
+  { id:"paper", label:"Paper frame",     kind:"paper",  w:0.60, h:0.60, base:1.00 },
+  { id:"gong",  label:"Steel gong",      kind:"steel",  w:0.45, h:0.45, base:1.05, armour:10 },
+  { id:"plate", label:"Steel plate",     kind:"steel",  w:1.00, h:1.00, base:0.80, armour:12 },
+  { id:"heavy", label:"Armour plate",    kind:"steel",  w:1.50, h:1.50, base:0.80, armour:20 },
+  { id:"etype", label:"E-type figure",   kind:"figure", w:0.45, h:0.75, base:0.00 },
+  { id:"man",   label:"Standing man",    kind:"human",  w:0.50, h:1.75, base:0.00 }
+];
+let DEFAULT_TARGETS = null;      // captured at boot, so the range can be restored
+let nextTargetId = 100;
+
+/* Targets must stay in range order: the hit loop walks them outwards and stops
+   at whatever catches the bullet or at the ground, so an out-of-order lane
+   would be tested after the bullet had already been accounted for. */
+function sortTargets(){ TARGETS.sort((a, b) => a.range - b.range); }
+function makeTarget(typeId, range, off, amp, speed){
+  const t = TARGET_TYPES.find(x => x.id === typeId) || TARGET_TYPES[0];
+  const tg = { id: nextTargetId++, range, off, w:t.w, h:t.h, base:t.base,
+               kind:t.kind, label:t.label,
+               mover: amp > 0 ? { amp, speed: Math.max(0.1, speed), phase: Math.random()*20 } : null };
+  if (t.armour) tg.armour = t.armour;
+  if (t.kind === "paper") tg.holes = [];
+  return tg;
+}
+function removeTarget(id){
+  const i = TARGETS.findIndex(t => t.id === id);
+  if (i >= 0) TARGETS.splice(i, 1);
+  S.impacts = S.impacts.filter(im => im.tgt !== id);
+  renderTargetList();
+}
+function restoreDefaultRange(){
+  TARGETS.length = 0;
+  for (const t of DEFAULT_TARGETS) TARGETS.push(JSON.parse(JSON.stringify(t)));
+  S.impacts = [];
+  renderTargetList();
+}
+
+const MAN_HEIGHT = 1.75;
+const manMils = range => MAN_HEIGHT / range * 1000;
+function targetY(tgt, time){
+  if (!tgt.mover) return tgt.off;
+  const { amp, speed, phase } = tgt.mover;
+  const period = 4 * amp / speed;
+  const s = ((time + phase) % period + period) % period * speed;
+  return tgt.off + (s < 2*amp ? s - amp : 3*amp - s);
+}
+function targetVY(tgt, time){
+  if (!tgt.mover) return 0;
+  const { amp, speed, phase } = tgt.mover;
+  const period = 4 * amp / speed;
+  const s = ((time + phase) % period + period) % period * speed;
+  return s < 2*amp ? speed : -speed;
+}
+
+/* ==========================================================================
+   5. SOUND  (synthesised, no assets)
+   ========================================================================== */
+const Audio_ = {
+  ctx:null,
+  wake(){ if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          if (this.ctx.state === "suspended") this.ctx.resume(); },
+  noise(dur){
+    const ctx = this.ctx, n = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random()*2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf; return src;
+  },
+  click(freq, dur, gain, type){
+    if (!this.ctx) return; const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type || "square"; o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq*0.55, t + dur);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + dur + 0.02);
+  },
+  metal(gain){
+    if (!this.ctx) return; const ctx = this.ctx, t = ctx.currentTime;
+    const src = this.noise(0.05), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    bp.type = "bandpass"; bp.frequency.value = 2400; bp.Q.value = 2.5;
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    src.connect(bp).connect(g).connect(ctx.destination); src.start(t);
+  },
+  shot(){
+    if (!this.ctx) return; const ctx = this.ctx, t = ctx.currentTime;
+    const src = this.noise(0.7), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = "lowpass"; lp.frequency.setValueAtTime(7000, t);
+    lp.frequency.exponentialRampToValueAtTime(380, t + 0.35);
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+    src.connect(lp).connect(g).connect(ctx.destination); src.start(t);
+    const o = ctx.createOscillator(), g2 = ctx.createGain();
+    o.type = "sawtooth"; o.frequency.setValueAtTime(140, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    g2.gain.setValueAtTime(0.45, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    o.connect(g2).connect(ctx.destination); o.start(t); o.stop(t + 0.25);
+  },
+  ding(delay, pitch, gain){
+    if (!this.ctx) return; const ctx = this.ctx, t = ctx.currentTime + delay;
+    [1, 2.76, 5.4].forEach((m, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = pitch * m;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(gain / (i+1.6), t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6 / (i+1));
+      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 2);
+    });
+  },
+  thud(delay, gain){
+    if (!this.ctx) return; const ctx = this.ctx, t = ctx.currentTime + delay;
+    const src = this.noise(0.25), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = "lowpass"; lp.frequency.value = 500;
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    src.connect(lp).connect(g).connect(ctx.destination); src.start(t);
+  }
+};
+
+/* ==========================================================================
+   6. BOLT MECHANICS
+   Two independent degrees of freedom: handle rotation and carrier travel.
+   Each key drives one of them, so the bolt can be opened and closed again
+   without disturbing the magazine or the chambered round.
+   ========================================================================== */
+/* Where the slack in a two-stage military trigger runs out and the sear takes
+   up. Everything before this is free travel; the shot breaks at 1.0. */
+const TRIGGER_WALL = 0.55;
+// spotting scope field of view, in degrees: about 1.2x at the wide end, 23x at the tight end
+const SCOPE_FOV_MIN = 0.62, SCOPE_FOV_MAX = 12.0;
+const ROT_RATE = 6.5, TRAVEL_RATE = 4.2;
+/* Only a turn-bolt has a handle to lift and lay down. On a self-loader the
+   carrier cams its own lugs, so the rotation axis is not the shooter's
+   business at all and keys 1 and 4 have nothing to drive. */
+const manualBolt = () => weapon().action === "bolt";
+const EXTRACT_AT = 0.07, EJECT_AT = 0.88, FEED_AT = 0.55, SEAT_AT = 0.04;
+let feedPending = null, jammed = false;
+
+function boltBlockedBySafety(){
+  if (S.rifle.safety === 2){ msg("Sicherung right: the bolt is locked."); return true; }
+  return false;
+}
+function boltLift(){
+  const r = S.rifle;
+  if (!manualBolt()) return msg("No handle to lift — the carrier locks itself.");
+  if (boltBlockedBySafety()) return;
+  if (r.travel > 0.03) return msg("The handle is already clear of its seat.");
+  if (r.rot > 0.5) return;
+  r.rotTarget = 1;
+  if (!r.cocked) r.cocked = true;          // the 98k cocks on opening
+  Audio_.click(240, 0.07, 0.3);
+}
+function boltLower(){
+  const r = S.rifle;
+  if (!manualBolt()) return msg("No handle to turn down — the carrier locks itself.");
+  if (boltBlockedBySafety()) return;
+  if (r.travel > 0.03) return msg("Push the bolt fully forward before turning it down.");
+  if (r.rot < 0.5) return;
+  if (jammed) return msg("Case jammed in the raceway. Draw the bolt fully back.");
+  r.rotTarget = 0;
+  Audio_.click(180, 0.09, 0.32);
+}
+function boltDrawStart(){
+  const r = S.rifle;
+  if (boltBlockedBySafety()) return;
+  if (manualBolt() && r.rot < 0.5) return msg("Lift the handle first.");
+  r.travelTarget = 1;
+  if (!S.cfg.holdToStroke) r.travel = 0.999;
+}
+function boltPushStart(){
+  const r = S.rifle;
+  if (boltBlockedBySafety()) return;
+  if (manualBolt() && r.rot < 0.5) return;
+  if (jammed && r.travel < EJECT_AT) return msg("Jammed. All the way back.");
+  if (r.heldOpen && !feedPending && r.mag.length === 0 && !r.chamber)
+    return msg("The follower is holding the bolt open. Load, or Shift+3 to depress it.");
+  r.travelTarget = 0;
+  if (!S.cfg.holdToStroke) r.travel = 0.001;
+}
+function boltStopTravel(){
+  if (S.cfg.holdToStroke) S.rifle.travelTarget = S.rifle.travel;
+}
+function depressFollower(){
+  S.rifle.heldOpen = false;
+  S.rifle.travelTarget = 0;
+  msg("Follower depressed.");
+}
+
+function updateBolt(dt){
+  const r = S.rifle;
+  const prevTravel = r.travel;
+  if (r.auto){
+    if (!r.autoReturning && r.travel < 0.97){
+      r.travelTarget = 1;
+    } else if (!r.autoReturning){
+      /* Top of the stroke, and the only moment the bolt catch gets a say. Test
+         it on the way down instead and it trips every time, because the feed
+         takes the last round out of the magazine before it reaches the chamber. */
+      r.autoReturning = true;
+      if (!r.mag.length && !r.chamber && !feedPending){
+        r.auto = false; r.autoReturning = false;
+        r.heldOpen = true; r.travelTarget = r.travel;
+      } else r.travelTarget = 0;
+    } else {
+      r.travelTarget = 0;
+      if (r.travel <= 0.01){ r.auto = false; r.autoReturning = false; }
+    }
+  }
+
+  /* The striker. Lifting the handle drags the cocking piece back on its cam,
+     so it follows the rotation rather than snapping; releasing it is a spring
+     letting go, which is why it falls perhaps fifty times faster. */
+  if (r.cocked) r.striker = Math.min(1, Math.max(r.striker, r.rot) + dt * 3.0);
+  else          r.striker = Math.max(0, r.striker - dt * 22);
+
+  if (r.rot !== r.rotTarget){
+    const d = Math.sign(r.rotTarget - r.rot) * ROT_RATE * dt;
+    r.rot = Math.abs(r.rotTarget - r.rot) < Math.abs(d) ? r.rotTarget : r.rot + d;
+    if (r.rot === r.rotTarget) Audio_.click(r.rotTarget ? 420 : 160, 0.05, 0.25);
+  }
+  if (r.travel !== r.travelTarget){
+    const rate = r.auto ? 26 : TRAVEL_RATE;        // a cycle takes about 80 ms
+    const d = Math.sign(r.travelTarget - r.travel) * rate * dt;
+    r.travel = Math.abs(r.travelTarget - r.travel) < Math.abs(d) ? r.travelTarget : r.travel + d;
+  }
+  const t = r.travel;
+
+  // rearward events
+  if (t > prevTravel){
+    /* The carrier cocks on its way back, whatever drove it. On the Mauser you
+       cannot get here without having lifted the handle, which already cocked
+       it; on a self-loader this is the charging handle doing the same job. */
+    if (prevTravel < 0.50 && t >= 0.50) r.cocked = true;
+    if (prevTravel < EXTRACT_AT && t >= EXTRACT_AT && r.chamber){
+      r.raceway = r.chamber; r.chamber = null;
+      Audio_.click(300, 0.05, 0.22);
+    }
+    const ejectPoint = S.cfg.jams ? EJECT_AT : 0.55;
+    if (prevTravel < ejectPoint && t >= ejectPoint && r.raceway){
+      const spent = r.raceway.state === "spent";
+      r.raceway = null; jammed = false;
+      if (!spent) r.loose += 1;                       // an unfired round goes back in the pouch
+      Audio_.metal(0.22);
+      msg(spent ? "Case ejected." : "Live round ejected and recovered.");
+    }
+    if (t > 0.9 && r.mag.length === 0 && !r.chamber) r.heldOpen = true;
+  }
+
+  // forward events
+  if (t < prevTravel){
+    if (prevTravel >= FEED_AT && t < FEED_AT){
+      if (r.raceway && S.cfg.jams){
+        jammed = true; r.travel = FEED_AT; r.travelTarget = FEED_AT;
+        Audio_.thud(0, 0.4);
+        msg("Short stroke. The case never cleared the ejector and is now jammed.");
+      } else if (r.mag.length > 0){
+        feedPending = r.mag.pop();
+        Audio_.click(520, 0.04, 0.18);
+      }
+    }
+    if (prevTravel >= SEAT_AT && t < SEAT_AT){
+      if (feedPending){ r.chamber = { state:"live", ammo:feedPending }; feedPending = null;
+                        Audio_.click(200, 0.06, 0.3); }
+      r.heldOpen = false;
+    }
+  }
+}
+
+/* ---- loading ---------------------------------------------------------- */
+function loadClip(){
+  const r = S.rifle;
+  if (r.travel < 0.8) return msg("Draw the bolt back before charging the magazine.");
+  const cap = weapon().mag;
+  if (r.mag.length >= cap) return msg("Magazine full.");
+  if (r.loose <= 0) return msg("Out of ammunition.");
+  const n = Math.min(cap - r.mag.length, r.loose, cap);
+  for (let i = 0; i < n; i++) r.mag.push(cloneAmmo(S.ammo));
+  r.loose -= n; r.heldOpen = false;
+  Audio_.metal(0.3); Audio_.click(700, 0.06, 0.2);
+  msg("Ladestreifen: " + n + " round" + (n>1?"s":"") + " charged.");
+}
+function loadSingle(){
+  const r = S.rifle;
+  if (r.travel < 0.8) return msg("Draw the bolt back first.");
+  if (r.mag.length >= weapon().mag) return msg("Magazine full.");
+  if (r.loose <= 0) return msg("Out of ammunition.");
+  r.mag.push(cloneAmmo(S.ammo)); r.loose -= 1; r.heldOpen = false;
+  Audio_.click(620, 0.05, 0.18);
+}
+function cycleSafety(back){
+  const r = S.rifle;
+  if (!r.cocked) return msg("The flag will not turn on a fired striker. Cycle the bolt.");
+  r.safety = (r.safety + (back ? 2 : 1)) % 3;
+  Audio_.click(330, 0.06, 0.25);
+}
+
+/* ==========================================================================
+   7. FIRING
+   ========================================================================== */
+function pullTrigger(){
+  const r = S.rifle, a = S.aim;
+  if (r.safety === 1) return msg("Sicherung centre: trigger dead, bolt free.");
+  if (r.safety === 2) return msg("Sicherung right: trigger dead, bolt locked.");
+  if ((manualBolt() && r.rot > 0.08) || r.travel > 0.03) return msg("The bolt is not locked.");
+  if (!r.cocked) return msg("Striker already down.");
+  if (!r.chamber){ r.cocked = false; Audio_.click(90, 0.05, 0.35);
+                   return msg("Click. The chamber is empty."); }
+  if (r.chamber.state === "spent"){ r.cocked = false; Audio_.click(90, 0.05, 0.35);
+                   return msg("Click. That is a fired case."); }
+  fire();
+}
+
+function fire(){
+  const r = S.rifle, a = S.aim, c = S.cfg;
+  refreshEnv();
+  const ammo = r.chamber.ammo;
+  const mv = ammo.mv + (c.tempC - 21) * ammo.tempSens + gauss() * ammo.sd;
+  const sg = millerSg(ammo, c.twist, S.env.rho, mv);
+
+  const sightAng = sightAngle();
+  // drifting the blade right swings the muzzle left of the line of sight
+  const windageAng = -(r.drift / 1000) / 0.503;
+  const phi = a.cant;
+
+  // flinch: a trigger broken while the muzzle is moving carries that motion
+  const flinch = Math.min(S.trigger.lastMove * 0.22, 0.0030);
+  const fa = Math.random() * Math.PI * 2;
+
+  const sigma = c.precisionMOA * MOA / 4;
+  const dEl = gauss() * sigma + Math.sin(fa) * flinch;
+  const dAz = gauss() * sigma + Math.cos(fa) * flinch;
+
+  const elev = a.el + sightAng * Math.cos(phi) - windageAng * Math.sin(phi) + dEl;
+  const azim = a.az + sightAng * Math.sin(phi) + windageAng * Math.cos(phi) + dAz;
+
+  const tr = trajectory({ ammo, env:S.env, elev, azim, mv,
+                          sightHeight:sightHeight(), maxRange:2050, dt:5e-4, sg });
+
+  r.chamber.state = "spent";
+  r.cocked = false;
+  /* A self-loader does its own drill: the barrel's gas throws the carrier back
+     through exactly the same travel the hand does, so the extract, eject, feed
+     and seat crossings in updateBolt need no special case -- only a driver. */
+  if (!manualBolt()){
+    r.auto = true; r.cocked = true;
+  }
+  Audio_.wake(); Audio_.shot();
+
+  // recoil: free recoil velocity of a 4 kg rifle, scaled into a muzzle climb
+  const imp = (ammo.mass * mv + (ammo.charge || 0.003) * 1550) / weapon().mass;
+  a.recVel += imp * 0.085;
+  a.recVelAz += (Math.random()-0.5) * imp * 0.045;
+  a.elIn += (Math.random()*0.4 + 0.3) * imp * 0.0016;   // you do not come back on it exactly
+  a.azIn += (Math.random()-0.5) * imp * 0.0022;
+
+  resolveShot(tr, { elev, azim, mv, sg, ammo, dEl, dAz, flinch });
+}
+
+function resolveShot(tr, meta){
+  const a = S.aim, eyeH = STANCES[a.stance].eye;
+  const now = S.aim.t;
+
+  // where it strikes the ground, if it does
+  let groundX = Infinity, groundT = 0, groundY = 0;
+  for (let i = 1; i < tr.path.length; i++){
+    if (tr.path[i].p[2] + eyeH <= 0){
+      groundX = tr.path[i].p[0]; groundT = tr.path[i].t;
+      groundY = tr.path[i].p[1] + tr.path[i].sd; break;
+    }
+  }
+
+  // the target the sights were nearest, as a fallback for calling the shot
+  let nearest = null, best = 1e9;
+  for (const tg of TARGETS){
+    const ty = targetY(tg, now), tz = tg.base + tg.h/2;
+    const dAz = Math.atan2(ty, tg.range) - a.az;
+    const dEl = Math.atan2(tz - eyeH, tg.range) - a.el;
+    const d = Math.hypot(dAz, dEl);
+    if (d < best){ best = d; nearest = tg; }
+  }
+
+  /* Paper does not stop a bullet, so a shot can punch a frame and carry on to
+     the dirt. That is still a hit on the frame, and must be reported as one. */
+  let stopped = null;                 // the target that actually caught it
+  const struck = [];                  // everything it went through, in order
+  for (const tg of TARGETS){
+    if (tg.range > groundX) break;
+    const c = tr.at(tg.range);
+    if (!c) break;
+    const ty = targetY(tg, now + c.t);
+    const z = eyeH + c.z;
+    const inside = Math.abs(c.y - ty) <= tg.w/2 && z >= tg.base && z <= tg.base + tg.h;
+    if (inside){
+      const local = { x:c.y - ty, z:z - tg.base };
+      S.impacts.push({ tgt:tg.id, local, born:performance.now(), kind:tg.kind });
+      struck.push(tg);
+      if (tg.kind === "paper"){
+        tg.holes.push(local);
+        if (tg.holes.length > 60) tg.holes.shift();
+        Audio_.thud(tg.range/343, 0.12);
+        continue;
+      }
+      // steel and figures keep the strike: lead splash, or a hole in the paint
+      const pen = penetrationMM(meta.ammo, c.speed);
+      const holed = !tg.armour || pen >= tg.armour;
+      tg.marks = tg.marks || [];
+      tg.marks.push(Object.assign(local, { holed }));
+      if (tg.marks.length > 80) tg.marks.shift();
+      stopped = { tg, c, local, pen, holed };
+      Audio_.ding(tg.range/343 + c.t, tg.kind === "steel" ? 760 : 300,
+                  tg.kind === "steel" ? 0.3 : 0.16);
+      break;
+    }
+  }
+  if (!stopped && groundX < Infinity){
+    S.splashes.push({ x:groundX, y:groundY, born:performance.now() });
+    Audio_.thud(groundX/343 + groundT, 0.18);
+  }
+  const hit = stopped;
+
+  /* Measure the shot against what it actually struck. Falling back to the
+     target the sights were closest to is only right when nothing was hit:
+     with lanes offset across the range, a led shot sits nearer a neighbouring
+     lane than its own, and the log then reports metres of error on a hit. */
+  const aimed = stopped ? stopped.tg : (struck.length ? struck[0] : nearest);
+  const cA = aimed ? tr.at(aimed.range) : null;
+  const rec = {
+    n: S.shots.length + 1, range: aimed ? aimed.range : "—", leaf: S.rifle.sight,
+    tof: cA ? cA.t : null, vimp: cA ? cA.speed : null,
+    energy: cA ? 0.5 * meta.ammo.mass * cA.speed * cA.speed : null,
+    vert: cA ? (eyeH + cA.z) - (eyeH + aimed.range * Math.tan(a.el)) : null,
+    horz: cA ? cA.y - aimed.range * Math.tan(a.az) : null,
+
+    hit: stopped ? stopped.tg.label + (stopped.tg.armour
+           ? (stopped.holed ? ", holed" : ", splashed") : "")
+       : struck.length ? struck[0].label + ", through"
+       : (groundX < Infinity ? "ground " + groundX.toFixed(0) + " m" : "over"),
+    ok: struck.length > 0
+  };
+  S.shots.unshift(rec);
+  if (S.shots.length > 60) S.shots.pop();
+
+  /* The integrator deliberately runs on past the ground so the zeroing solver
+     has a smooth, monotone function to work with. The trace must not: cut it
+     at whatever actually stopped the bullet, or it draws a streak carrying on
+     through the target and tens of metres underground. */
+  const stopX = hit ? hit.tg.range : (groundX < Infinity ? groundX : Infinity);
+  S.traces.push({
+    path: tr.path.filter((p, i) => i % 12 === 0 && p.p[0] <= stopX),
+    eyeH, born: performance.now()
+  });
+  if (S.traces.length > 6) S.traces.shift();
+
+  renderLog();
+  if (stopped) msg("Hit — " + stopped.tg.label + " at " + stopped.tg.range + " m"
+      + (stopped.tg.armour
+         ? (stopped.holed
+            ? ", through " + stopped.tg.armour + " mm of plate"
+            : ", splashed off " + stopped.tg.armour + " mm — " + stopped.pen.toFixed(0) + " mm of bite")
+         : ""));
+  else if (struck.length)
+    msg("Hit — " + struck[0].label + " at " + struck[0].range
+        + " m, straight through the paper");
+  else                msg(rec.hit === "over" ? "Over." : "Miss.");
+}
+
+/* ==========================================================================
+   8. VIEW
+   ========================================================================== */
+const cv = document.getElementById("view");
+const g = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+
+let CAM = null;
+function buildCamera(){
+  const a = S.aim;
+  const el = a.el + a.recEl, az = a.az + a.recAz, phi = a.cant;
+  const ce = Math.cos(el), se = Math.sin(el), ca = Math.cos(az), sa = Math.sin(az);
+  const f  = [ce*ca, ce*sa, se];
+  const r0 = [-sa, ca, 0];
+  const u0 = [-f[2]*r0[1], f[2]*r0[0], f[0]*r0[1] - f[1]*r0[0]];
+  const cp = Math.cos(phi), sp = Math.sin(phi);
+  const r = [r0[0]*cp - u0[0]*sp, r0[1]*cp - u0[1]*sp, r0[2]*cp - u0[2]*sp];
+  const u = [u0[0]*cp + r0[0]*sp, u0[1]*cp + r0[1]*sp, u0[2]*cp + r0[2]*sp];
+  const fov = d2r(S.scope ? S.scopeFov
+                : usingZF41() ? S.cfg.fovDeg / ZF41_MAG
+                : usingMil()  ? S.cfg.fovDeg / S.milMag
+                : S.cfg.fovDeg);
+  CAM = { f, r, u, focal:(H/2) / Math.tan(fov/2), eye:[0,0,STANCES[a.stance].eye], fov };
+}
+function project(x, y, z){            // world metres -> screen px, or null behind
+  const dx = x - CAM.eye[0], dy = y - CAM.eye[1], dz = z - CAM.eye[2];
+  const cz = dx*CAM.f[0] + dy*CAM.f[1] + dz*CAM.f[2];
+  if (cz <= 0.02) return null;
+  const cx = dx*CAM.r[0] + dy*CAM.r[1] + dz*CAM.r[2];
+  const cy = dx*CAM.u[0] + dy*CAM.u[1] + dz*CAM.u[2];
+  return [W/2 + cx/cz*CAM.focal, H/2 - cy/cz*CAM.focal, cz];
+}
+function projectDir(dx, dy, dz){      // a direction, i.e. a point at infinity
+  const cz = dx*CAM.f[0] + dy*CAM.f[1] + dz*CAM.f[2];
+  if (cz <= 1e-4) return null;
+  const cx = dx*CAM.r[0] + dy*CAM.r[1] + dz*CAM.r[2];
+  const cy = dx*CAM.u[0] + dy*CAM.u[1] + dz*CAM.u[2];
+  return [W/2 + cx/cz*CAM.focal, H/2 - cy/cz*CAM.focal];
+}
+
+function drawWorld(){
+  // sky
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, "#39465a"); sky.addColorStop(0.55, "#6f7a80"); sky.addColorStop(1, "#9aa08f");
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+
+  // horizon, as the projection of directions lying in the ground plane
+  const hz = [];
+  for (let k = -12; k <= 12; k++){
+    const p = projectDir(1, k * 0.35, 0);
+    if (p) hz.push(p);
+  }
+  if (hz.length > 1){
+    g.save();
+    g.beginPath(); g.moveTo(hz[0][0], hz[0][1]);
+    for (const p of hz) g.lineTo(p[0], p[1]);
+    g.lineTo(W*4, H*4); g.lineTo(-W*4, H*4); g.closePath();
+    g.clip();
+    const grd = g.createLinearGradient(0, hz[Math.floor(hz.length/2)][1], 0, H);
+    grd.addColorStop(0, "#5c6049"); grd.addColorStop(0.35, "#4a5038"); grd.addColorStop(1, "#343a26");
+    g.fillStyle = grd; g.fillRect(-W, -H, W*3, H*3);
+
+    // tree line
+    g.fillStyle = "rgba(26,32,24,.85)"; g.beginPath();
+    const hy = hz[Math.floor(hz.length/2)][1];
+    g.moveTo(-W, hy);
+    for (let i = -40; i <= 40; i++){
+      const n = Math.sin(i*1.7)*0.5 + Math.sin(i*0.6)*0.5;
+      g.lineTo(W/2 + i*W/26, hy - 5 - n*5);
+    }
+    g.lineTo(W*2, hy); g.lineTo(W*2, hy+3); g.lineTo(-W, hy+3); g.closePath(); g.fill();
+
+    // range lines every 100 m, lateral rails every 10 m
+    if (S.showRange){
+    g.lineWidth = 1;
+    for (let R = 100; R <= 2000; R += 100){
+      g.strokeStyle = R % 500 === 0 ? "rgba(214,206,180,.30)" : "rgba(214,206,180,.13)";
+      g.beginPath(); let started = false;
+      for (let y = -60; y <= 60; y += 4){
+        const p = project(R, y, 0); if (!p) { started = false; continue; }
+        started ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); started = true;
+      }
+      g.stroke();
+    }
+    g.strokeStyle = "rgba(214,206,180,.08)";
+    for (let y = -40; y <= 40; y += 10){
+      g.beginPath(); let started = false;
+      for (let x = 40; x <= 2050; x += 40){
+        const p = project(x, y, 0); if (!p) { started = false; continue; }
+        started ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); started = true;
+      }
+      g.stroke();
+    }
+    }
+    g.restore();
+  }
+
+  // range markers
+  if (!S.showRange) return;
+  g.textAlign = "center";
+  for (const tg of TARGETS){
+    const p = project(tg.range, tg.off - tg.w/2 - 1.3, 0.9);
+    if (!p) continue;
+    const sc = CAM.focal / p[2];
+    g.fillStyle = "rgba(230,222,196,.55)";
+    g.font = Math.max(7, Math.min(16, sc*0.42)) + "px ui-monospace, monospace";
+    g.fillText(tg.range + "", p[0], p[1]);
+  }
+  g.textAlign = "left";
+}
+
+function drawTargets(now){
+  const order = TARGETS.slice().sort((a,b) => b.range - a.range);
+  for (const tg of order){
+    const ty = targetY(tg, now);
+    const quad = [
+      project(tg.range, ty - tg.w/2, tg.base + tg.h),
+      project(tg.range, ty + tg.w/2, tg.base + tg.h),
+      project(tg.range, ty + tg.w/2, tg.base),
+      project(tg.range, ty - tg.w/2, tg.base)
+    ];
+    if (quad.some(q => !q)) continue;
+
+    // post
+    if (tg.base > 0.02){
+      const a = project(tg.range, ty, tg.base), b = project(tg.range, ty, 0);
+      if (a && b){ g.strokeStyle = "rgba(30,28,22,.8)";
+        g.lineWidth = Math.max(1, CAM.focal/a[2]*0.06);
+        g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+    }
+    g.beginPath(); g.moveTo(quad[0][0], quad[0][1]);
+    for (let i = 1; i < 4; i++) g.lineTo(quad[i][0], quad[i][1]);
+    g.closePath();
+
+    if (tg.kind === "paper"){
+      g.fillStyle = "#d8d2bd"; g.fill();
+      g.strokeStyle = "rgba(40,38,30,.7)"; g.lineWidth = 1; g.stroke();
+      // concentric rings
+      const c = project(tg.range, ty, tg.base + tg.h/2);
+      if (c){ const sc = CAM.focal / c[2];
+        for (let k = 4; k >= 1; k--){
+          g.beginPath(); g.arc(c[0], c[1], sc * (tg.w/2) * (k/4) * 0.92, 0, 7);
+          g.strokeStyle = k === 1 ? "rgba(20,20,18,.9)" : "rgba(60,58,48,.5)";
+          if (k === 1) { g.fillStyle = "rgba(25,25,22,.85)"; g.fill(); }
+          g.stroke();
+        }
+        for (const h of tg.holes){
+          const hp = project(tg.range, ty + h.x, tg.base + h.z);
+          if (hp){ g.fillStyle = "#15150f"; g.beginPath();
+                   g.arc(hp[0], hp[1], Math.max(0.8, sc*0.0041), 0, 7); g.fill(); }
+        }
+      }
+    } else if (tg.kind === "steel"){
+      g.fillStyle = "#6e7780"; g.fill();
+      g.strokeStyle = "rgba(20,22,24,.85)"; g.lineWidth = 1; g.stroke();
+      const c = project(tg.range, ty, tg.base + tg.h/2);
+      if (c){ const sc = CAM.focal / c[2];
+        g.fillStyle = "rgba(240,235,215,.5)";
+        g.beginPath(); g.arc(c[0], c[1], sc*(tg.w/2)*0.3, 0, 7); g.fill();
+      }
+    } else if (tg.kind === "human"){
+      const foot = project(tg.range, ty, tg.base);
+      const head = project(tg.range, ty, tg.base + tg.h);
+      if (foot && head){
+        const hpx = foot[1] - head[1], wpx = Math.abs(quad[1][0] - quad[0][0]);
+        const x = foot[0], y = foot[1];
+        g.fillStyle = "#30362f";
+        g.beginPath();
+        g.moveTo(x - wpx*0.17, y);                       // legs
+        g.lineTo(x - wpx*0.19, y - hpx*0.47);
+        g.lineTo(x - wpx*0.46, y - hpx*0.54);            // shoulders
+        g.lineTo(x - wpx*0.50, y - hpx*0.80);
+        g.lineTo(x - wpx*0.26, y - hpx*0.84);
+        g.lineTo(x - wpx*0.12, y - hpx*0.88);            // neck
+        g.lineTo(x - wpx*0.13, y - hpx*0.95);
+        g.lineTo(x + wpx*0.13, y - hpx*0.95);            // head
+        g.lineTo(x + wpx*0.12, y - hpx*0.88);
+        g.lineTo(x + wpx*0.26, y - hpx*0.84);
+        g.lineTo(x + wpx*0.50, y - hpx*0.80);
+        g.lineTo(x + wpx*0.46, y - hpx*0.54);
+        g.lineTo(x + wpx*0.19, y - hpx*0.47);
+        g.lineTo(x + wpx*0.17, y);
+        g.closePath(); g.fill();
+        g.strokeStyle = "rgba(206,200,172,.40)"; g.lineWidth = 1; g.stroke();
+        if (hpx > 5 && S.showRange){
+          g.textAlign = "center";
+          g.font = Math.max(8, Math.min(13, hpx*0.16)) + "px ui-monospace, monospace";
+          g.fillStyle = "rgba(206,200,172,.55)";
+          g.fillText(tg.range + " m", x, y + hpx*0.20);
+          if (S.officer){
+            g.fillStyle = "rgba(184,146,74,.75)";
+            g.fillText("1.75 m = " + manMils(tg.range).toFixed(2) + " mil", x, y + hpx*0.34);
+          }
+          g.textAlign = "left";
+        }
+      }
+    } else {
+      // E-type figure
+      const c = project(tg.range, ty, tg.base);
+      const top = project(tg.range, ty, tg.base + tg.h);
+      if (c && top){
+        const hpx = c[1] - top[1], wpx = Math.abs(quad[1][0] - quad[0][0]);
+        g.fillStyle = "#26251a";
+        g.beginPath();
+        g.moveTo(c[0] - wpx*0.5, c[1]);
+        g.lineTo(c[0] - wpx*0.5, c[1] - hpx*0.72);
+        g.lineTo(c[0] - wpx*0.21, c[1] - hpx*0.80);
+        g.lineTo(c[0] - wpx*0.17, c[1] - hpx*0.95);
+        g.lineTo(c[0] + wpx*0.17, c[1] - hpx*0.95);
+        g.lineTo(c[0] + wpx*0.21, c[1] - hpx*0.80);
+        g.lineTo(c[0] + wpx*0.5, c[1] - hpx*0.72);
+        g.lineTo(c[0] + wpx*0.5, c[1]);
+        g.closePath(); g.fill();
+        g.strokeStyle = "rgba(188,180,150,.45)"; g.lineWidth = 1; g.stroke();
+      }
+    }
+
+    /* Strikes the steel keeps. A jacketed bullet on a plate throws its lead
+       forward and leaves bare metal with a grey halo of splash around it;
+       a figure target just gets a hole punched in the paint. */
+    if (tg.marks && tg.marks.length){
+      const ref = project(tg.range, ty, tg.base + tg.h/2);
+      if (ref){
+        const sc = CAM.focal / ref[2];
+        for (const m of tg.marks){
+          const mp = project(tg.range, ty + m.x, tg.base + m.z);
+          if (!mp) continue;
+          const rad = Math.max(0.7, sc * 0.013);
+          if (tg.kind === "steel" && m.holed){
+            g.fillStyle = "rgba(170,172,166,.35)";
+            g.beginPath(); g.arc(mp[0], mp[1], rad*1.5, 0, 7); g.fill();
+            g.fillStyle = "#0a0c0e";                    // daylight through the plate
+            g.beginPath(); g.arc(mp[0], mp[1], rad*0.85, 0, 7); g.fill();
+          } else if (tg.kind === "steel"){
+            g.fillStyle = "rgba(205,205,198,.30)";
+            g.beginPath(); g.arc(mp[0], mp[1], rad*2.1, 0, 7); g.fill();
+            g.fillStyle = "#cfd2cd";
+            g.beginPath(); g.arc(mp[0], mp[1], rad, 0, 7); g.fill();
+            g.fillStyle = "rgba(40,44,48,.75)";
+            g.beginPath(); g.arc(mp[0], mp[1], rad*0.45, 0, 7); g.fill();
+          } else {
+            g.fillStyle = "#12120c";
+            g.beginPath(); g.arc(mp[0], mp[1], Math.max(0.7, sc*0.0045), 0, 7); g.fill();
+          }
+        }
+      }
+    }
+
+    // fresh strikes glow briefly
+    for (const im of S.impacts){
+      if (im.tgt !== tg.id) continue;
+      const age = (performance.now() - im.born) / 1000;
+      if (age > 2.2) continue;
+      const p = project(tg.range, ty + im.local.x, tg.base + im.local.z);
+      if (!p) continue;
+      const sc = CAM.focal / p[2];
+      g.fillStyle = "rgba(255,226,150," + (1 - age/2.2).toFixed(3) + ")";
+      g.beginPath(); g.arc(p[0], p[1], Math.max(1.2, sc*0.02*(1 + age)), 0, 7); g.fill();
+    }
+  }
+  S.impacts = S.impacts.filter(i => performance.now() - i.born < 2400);
+}
+
+function drawSplashes(){
+  const now = performance.now();
+  for (const s of S.splashes){
+    const age = (now - s.born) / 1000;
+    if (age > 2.4) continue;
+    const p = project(s.x, s.y, 0.12 + age*0.5);
+    if (!p) continue;
+    const sc = CAM.focal / p[2];
+    g.fillStyle = "rgba(196,182,150," + Math.max(0, 0.6 - age/2.4*0.6).toFixed(3) + ")";
+    g.beginPath(); g.ellipse(p[0], p[1], sc*(0.25 + age*0.5), sc*(0.35 + age*0.7), 0, 0, 7); g.fill();
+  }
+  S.splashes = S.splashes.filter(s => now - s.born < 2600);
+}
+
+function drawTraces(){
+  if (!S.showTrace) return;
+  const now = performance.now();
+  for (const tr of S.traces){
+    const age = (now - tr.born) / 1000;
+    if (age > 9) continue;
+    g.strokeStyle = "rgba(226,160,80," + Math.max(0, 0.55 - age/9*0.55).toFixed(3) + ")";
+    g.lineWidth = 1.2; g.beginPath(); let started = false;
+    for (const pt of tr.path){
+      // the eye height the shot was fired from, not whatever stance you are in now
+      const p = project(pt.p[0], pt.p[1] + pt.sd, tr.eyeH + pt.p[2]);
+      if (!p){ started = false; continue; }
+      started ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); started = true;
+    }
+    g.stroke();
+  }
+  S.traces = S.traces.filter(t => now - t.born < 9500);
+}
+
+/* ---- the sight picture ------------------------------------------------- */
+function drawRifle(){
+  if (S.scope) return;
+  if (usingZF41()) return drawZF41();
+  if (usingMil())  return drawMilScope();
+  if (S.weapon !== "k98k") return drawAperture();
+  const cx = W/2, cy = H/2, F = CAM.focal;
+  const ang = a => a * F;                      // a small angle in radians -> pixels
+  const r = S.rifle;
+  const dRear = EYE_REAR, dFront = EYE_REAR + SIGHT_RADIUS;
+  const dHand = 0.62, dRecv = 0.345, dStock = 0.26;
+  const sh = S.cfg.sightHeight;
+  const theta = weapon().ironTable[r.sight] || 0.003;   // iron bore elevation
+
+  /* Perpendicular distance from the line of sight down to the barrel, at a
+     station s metres behind the front sight. The s*theta term is what makes
+     the Lange Visier recognisable: run the leaf out and the notch genuinely
+     rides higher above the bore, so the ramp beneath it grows. */
+  const below = (s, radius, d) => cy + ang((sh - radius + s * theta) / d);
+
+  const muzHalf   = ang(0.00725 / dFront);
+  const barrelTop = below(0, 0.00725, dFront);
+  const hgHalf    = ang(0.0178 / dHand);
+  const hgTop     = below(0.333, 0.0110, dHand);
+  const baseHalf  = ang(0.0175 / dRear);
+  const baseTop   = below(SIGHT_RADIUS, 0.0085, dRear);
+  const STEEL = "#1d2126", STEEL_HI = "#2f353d", WOOD = "#3b2c1c", WOOD_HI = "#55402a";
+  const BRASS = "#b08840", BRASS_HI = "#d6ab63", BRASS_SPENT = "#7e6430";
+
+  // ---------- barrel, from the handguard out to the muzzle ----------
+  g.save();
+  g.filter = "blur(3.5px)";
+  // The handguard brackets the lower half of the barrel. Almost all of it hides
+  // behind the rear sight base from here, so keep it dark: lit walnut this far
+  // down the barrel reads as orange wings sticking out either side of the sight.
+  g.fillStyle = "#231a11";
+  g.beginPath();
+  g.moveTo(cx - hgHalf,      hgTop + ang(0.0035/dHand));
+  g.lineTo(cx + hgHalf,      hgTop + ang(0.0035/dHand));
+  g.lineTo(cx + hgHalf*0.86, hgTop + ang(0.020/dHand));
+  g.lineTo(cx - hgHalf*0.86, hgTop + ang(0.020/dHand));
+  g.closePath(); g.fill();
+  g.fillStyle = "rgba(150,116,70,.06)";
+  g.fillRect(cx - hgHalf*0.80, hgTop + ang(0.0050/dHand), hgHalf*0.5, ang(0.004/dHand));
+  g.fillStyle = STEEL;
+  g.beginPath();
+  g.moveTo(cx - muzHalf, barrelTop); g.lineTo(cx + muzHalf, barrelTop);
+  g.lineTo(cx + hgHalf*0.60, hgTop); g.lineTo(cx - hgHalf*0.60, hgTop);
+  g.closePath(); g.fill();
+  g.fillStyle = "rgba(140,150,165,.10)";       // the sheen along one side of a round barrel
+  g.beginPath();
+  g.moveTo(cx - muzHalf*0.80, barrelTop);  g.lineTo(cx - muzHalf*0.30, barrelTop);
+  g.lineTo(cx - hgHalf*0.20,  hgTop);      g.lineTo(cx - hgHalf*0.46,  hgTop);
+  g.closePath(); g.fill();
+  // nose cap with the bayonet lug, and the cleaning rod tip under it
+  const ncHalf = ang(0.0120 / (dFront + 0.05));
+  g.fillStyle = STEEL_HI;
+  g.fillRect(cx - ncHalf, barrelTop + ang(0.0012/dFront), ncHalf*2, ang(0.0092/dFront));
+  g.fillStyle = "#171a1e";
+  g.fillRect(cx - ang(0.0030/dFront), barrelTop + ang(0.0112/dFront),
+             ang(0.0060/dFront), ang(0.0070/dFront));
+  g.fillStyle = STEEL_HI;                       // Reinigungsstab, protruding below
+  g.fillRect(cx - ang(0.0016/dFront), barrelTop + ang(0.0160/dFront),
+             ang(0.0032/dFront), ang(0.0050/dFront));
+  g.restore();
+
+  // ---------- front sight: the one thing the eye is focused on ----------
+  const bw = ang(0.00095 / dFront);
+  const bladeH = (barrelTop - cy);
+  g.fillStyle = "#07090b";
+  g.beginPath();                                // barleycorn: flat top, flared base
+  g.moveTo(cx - bw,     cy);
+  g.lineTo(cx + bw,     cy);
+  g.lineTo(cx + bw*2.3, barrelTop);
+  g.lineTo(cx - bw*2.3, barrelTop);
+  g.closePath(); g.fill();
+  g.fillStyle = "rgba(165,170,180,.20)";
+  g.fillRect(cx - bw, cy, Math.max(0.7, bw*0.45), bladeH);
+  const earX = ang(0.0098 / dFront);            // protective ears, clear of the sight line
+  g.fillStyle = "#090b0d";
+  g.fillRect(cx - earX - bw, cy + bladeH*0.10, bw*2, bladeH*0.92);
+  g.fillRect(cx + earX - bw, cy + bladeH*0.10, bw*2, bladeH*0.92);
+
+  // ---------- Lange Visier ----------
+  g.save();
+  g.filter = "blur(5px)";
+  const leafHalf = ang(0.0060 / dRear);
+  const slHalf   = ang(0.0092 / dRear);
+  const slEar    = ang(0.0128 / dRear);
+  const slH      = ang(0.0055 / dRear);
+  const nw       = ang(0.0011 / dRear);
+  const nd       = ang(0.0019 / dRear);
+
+  g.fillStyle = STEEL;                          // the curved base astride the barrel
+  g.beginPath();
+  g.moveTo(cx - baseHalf,      baseTop + ang(0.013/dRear));
+  g.quadraticCurveTo(cx - baseHalf*0.72, baseTop - ang(0.0015/dRear),
+                     cx - leafHalf*1.5,  baseTop - ang(0.004/dRear));
+  g.lineTo(cx + leafHalf*1.5,  baseTop - ang(0.004/dRear));
+  g.quadraticCurveTo(cx + baseHalf*0.72, baseTop - ang(0.0015/dRear),
+                     cx + baseHalf,      baseTop + ang(0.013/dRear));
+  g.closePath(); g.fill();
+
+  g.fillStyle = "#1a1e22";                      // the ramp leaf, taller as it is run out
+  g.beginPath();
+  g.moveTo(cx - leafHalf,      cy + slH*0.5);
+  g.lineTo(cx + leafHalf,      cy + slH*0.5);
+  g.lineTo(cx + leafHalf*1.35, baseTop);
+  g.lineTo(cx - leafHalf*1.35, baseTop);
+  g.closePath(); g.fill();
+  g.strokeStyle = "rgba(150,158,170,.14)"; g.lineWidth = 1.4;
+  g.beginPath();
+  g.moveTo(cx - leafHalf*0.45, cy + slH*0.5); g.lineTo(cx - leafHalf*0.6, baseTop);
+  g.stroke();
+
+  g.fillStyle = "#15181c";                      // slider carrying the notch
+  g.beginPath();
+  g.moveTo(cx - slEar,  cy + slH*0.30);
+  g.lineTo(cx - slHalf, cy);
+  g.lineTo(cx - nw,     cy);
+  g.lineTo(cx,          cy + nd);
+  g.lineTo(cx + nw,     cy);
+  g.lineTo(cx + slHalf, cy);
+  g.lineTo(cx + slEar,  cy + slH*0.30);
+  g.lineTo(cx + slEar,  cy + slH);
+  g.lineTo(cx - slEar,  cy + slH);
+  g.closePath(); g.fill();
+  g.fillStyle = "rgba(160,168,180,.12)";
+  g.fillRect(cx - slEar, cy + slH*0.30, slEar*2, 1.6);
+  g.restore();
+
+  /* ---------- receiver and bolt ----------
+     The bolt travels 100 mm straight back towards the eye, so its station and
+     its distance both change: below() and ang() then give the growth and the
+     downward swing for free, instead of a flat slide. */
+  const boltBack = r.travel * 0.100;
+  const dBolt    = dRecv - boltBack;
+  const boltS    = SIGHT_RADIUS + 0.090 + boltBack;
+  const recvTop  = below(SIGHT_RADIUS + 0.090, 0.0120, dRecv);
+  const recvHalf = ang(0.0150 / dRecv);
+  const recvH    = ang(0.0245 / dRecv);
+  const bs       = ang(0.0115 / dBolt);
+
+  g.save();
+  g.filter = "blur(4.5px)";
+
+  const tube = (x0, x1, yTop, yBot, dark, lit) => {
+    const gr = g.createLinearGradient(x0, 0, x1, 0);
+    gr.addColorStop(0, dark); gr.addColorStop(0.34, lit);
+    gr.addColorStop(0.62, dark); gr.addColorStop(1, "#0f1215");
+    g.fillStyle = gr;
+    g.beginPath();
+    g.moveTo(x0, yTop + (yBot-yTop)*0.16);
+    g.quadraticCurveTo((x0+x1)/2, yTop - (yBot-yTop)*0.10, x1, yTop + (yBot-yTop)*0.16);
+    g.lineTo(x1, yBot); g.lineTo(x0, yBot);
+    g.closePath(); g.fill();
+  };
+  tube(cx - recvHalf, cx + recvHalf, recvTop, recvTop + recvH, "#141820", "#2c333c");
+  // charger bridge at the rear of the receiver ring
+  g.fillStyle = "#11151a";
+  g.fillRect(cx - recvHalf*0.92, recvTop + recvH*0.04, recvHalf*1.84, recvH*0.10);
+
+  /* ---------- the action, open to view once the bolt is back ---------- */
+  const open = Math.max(0, Math.min(1, (r.travel - 0.06) / 0.80));
+  /* The bolt face is what uncovers the action, so its position defines the
+     opening: everything forward of the face is on view, and the bolt body is
+     drawn from the face backwards. Deriving the two from one number is what
+     stops the bolt being painted over the chamber it is meant to expose. */
+  const wHalf = recvHalf * 0.70;
+  const wTop  = recvTop + recvH*0.12;
+  const faceY = wTop + recvH*0.80 * open;
+  if (open > 0.01){
+    const wBot = faceY;
+    g.fillStyle = "#07090b";                    // the well inside the receiver
+    g.beginPath();
+    g.moveTo(cx - wHalf*0.72, wTop); g.lineTo(cx + wHalf*0.72, wTop);
+    g.lineTo(cx + wHalf, wBot);      g.lineTo(cx - wHalf, wBot);
+    g.closePath(); g.fill();
+
+    // chamber mouth: the breech end of the barrel, at the far end of the well
+    const chY = wTop + recvH*0.10, chR = wHalf*0.56;
+    g.fillStyle = "#101418";
+    g.beginPath(); g.ellipse(cx, chY, chR, chR*0.46, 0, 0, 7); g.fill();
+    if (r.chamber){                             // a round still sitting in it
+      g.fillStyle = r.chamber.state === "live" ? BRASS : BRASS_SPENT;
+      g.beginPath(); g.ellipse(cx, chY, chR*0.84, chR*0.38, 0, 0, 7); g.fill();
+      g.fillStyle = "#4a3c22";
+      g.beginPath(); g.ellipse(cx, chY, chR*0.30, chR*0.14, 0, 0, 7); g.fill();
+    } else {
+      g.fillStyle = "#05070a";                  // looking down an empty bore
+      g.beginPath(); g.ellipse(cx, chY, chR*0.40, chR*0.18, 0, 0, 7); g.fill();
+    }
+
+    // what the magazine is presenting, below the chamber
+    if (open > 0.45){
+      const mY = wBot - recvH*0.13;
+      if (r.mag.length){
+        g.fillStyle = BRASS;
+        g.beginPath(); g.ellipse(cx, mY, wHalf*0.82, wHalf*0.30, 0, 0, 7); g.fill();
+        g.fillStyle = BRASS_HI;
+        g.beginPath(); g.ellipse(cx - wHalf*0.22, mY - wHalf*0.08, wHalf*0.34, wHalf*0.10, 0, 0, 7); g.fill();
+      } else {
+        g.fillStyle = "#39404a";                // the follower, holding the bolt open
+        g.fillRect(cx - wHalf*0.70, mY - wHalf*0.12, wHalf*1.40, wHalf*0.24);
+      }
+    }
+
+    // the case the extractor has hold of, riding back on the bolt face
+    if (r.raceway){
+      const cyCase = wTop + recvH*0.09 + (wBot - wTop - recvH*0.09) * 0.78;
+      g.fillStyle = r.raceway.state === "spent" ? BRASS_SPENT : BRASS;
+      g.save(); g.translate(cx + wHalf*0.30, cyCase); g.rotate(jammed ? 0.7 : 0.12);
+      g.fillRect(-wHalf*0.52, -wHalf*0.17, wHalf*1.04, wHalf*0.34);
+      g.fillStyle = "rgba(220,190,130,.22)";
+      g.fillRect(-wHalf*0.52, -wHalf*0.17, wHalf*1.04, wHalf*0.09);
+      g.restore();
+    }
+  }
+
+  // bolt body, from the face backwards, growing as it comes towards the eye
+  const boltTop  = faceY;
+  const boltHalf = ang(0.0083 / dBolt);
+  tube(cx - boltHalf, cx + boltHalf, boltTop, boltTop + ang(0.021/dBolt), "#171c23", "#39414b");
+
+  /* Bolt handle: bent down on the right, swinging up when the handle is lifted.
+     It is sized off the receiver rather than off the retreating bolt, because
+     the handle root sits mid-receiver and barely closes on the eye -- scaling
+     it with the bolt face throws the knob clean off the screen. */
+  const bsH = ang(0.0105 / dRecv);
+  g.save();
+  g.translate(cx + boltHalf*1.10, boltTop + bsH*0.22);
+  g.rotate(-r.rot * 1.48);
+  g.strokeStyle = "#39414b"; g.lineWidth = bsH*0.46; g.lineCap = "round";
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(bsH*0.62, bsH*1.30); g.stroke();
+  g.fillStyle = "#363d47";                      // the flattened pear of a 98k knob
+  g.beginPath(); g.ellipse(bsH*0.70, bsH*1.62, bsH*0.50, bsH*0.40, 0.3, 0, 7); g.fill();
+  g.fillStyle = "rgba(190,198,210,.10)";
+  g.beginPath(); g.ellipse(bsH*0.58, bsH*1.52, bsH*0.20, bsH*0.14, 0.3, 0, 7); g.fill();
+  g.restore();
+
+  /* Rear of the bolt: the three-position flag, and below it the cocking piece.
+     Both are pivoted off the sight base and kept short on purpose, because the
+     rear of the bolt sits below the line of sight and must never climb into
+     the notch however it is turned. */
+  const rearY = baseTop + bs*0.95 + boltBack * ang(1.0 / dBolt) * 0.18;
+  g.save();
+  g.translate(cx, rearY);
+  g.rotate([-1.15, 0, 1.15][r.safety]);
+  g.fillStyle = r.safety ? "#3b434d" : "#262c33";
+  g.beginPath();
+  g.moveTo(-bs*0.22, 0); g.lineTo(bs*0.22, 0);
+  g.lineTo(bs*0.36, -bs*0.72); g.lineTo(-bs*0.36, -bs*0.72);
+  g.closePath(); g.fill();
+  g.restore();
+
+  // the cocking piece stands proud when the striker is held back, flush when it falls
+  const stOut = r.striker * bs*0.52;
+  g.fillStyle = "#2a3037";
+  g.beginPath();
+  g.ellipse(cx, rearY + bs*0.60 + stOut, bs*0.30, bs*0.22 + stOut*0.30, 0, 0, 7);
+  g.fill();
+  g.fillStyle = r.striker > 0.5 ? "rgba(196,204,216,.22)" : "rgba(140,148,160,.10)";
+  g.beginPath();
+  g.ellipse(cx - bs*0.07, rearY + bs*0.52 + stOut, bs*0.13, bs*0.08, 0, 0, 7);
+  g.fill();
+  g.restore();
+
+  if (jammed){
+    g.save(); g.filter = "blur(6px)"; g.fillStyle = "#8c3a28";
+    g.beginPath(); g.arc(cx + recvHalf*1.25, recvTop + bs*0.2, bs*0.4, 0, 7); g.fill();
+    g.restore();
+  }
+
+  // ---------- walnut stock, nearest the eye and the softest ----------
+  g.save();
+  g.filter = "blur(12px)";
+  const stHalf = ang(0.016 / dStock), stTop = below(SIGHT_RADIUS + 0.26, -0.004, dStock);
+  const grd = g.createLinearGradient(cx - stHalf*1.6, 0, cx + stHalf*1.6, 0);
+  grd.addColorStop(0, "#2b2013"); grd.addColorStop(0.38, WOOD_HI);
+  grd.addColorStop(0.62, WOOD); grd.addColorStop(1, "#241b10");
+  g.fillStyle = grd;
+  g.beginPath();
+  g.moveTo(cx - stHalf*1.35, stTop + ang(0.006/dStock));
+  g.quadraticCurveTo(cx, stTop, cx + stHalf*1.35, stTop + ang(0.006/dStock));
+  g.lineTo(cx + stHalf*2.6, H + 20); g.lineTo(cx - stHalf*2.6, H + 20);
+  g.closePath(); g.fill();
+  g.restore();
+
+  // eye relief falls away at the edges of the aperture your own brow makes
+  const vig = g.createRadialGradient(cx, cy, Math.min(W,H)*0.30, cx, cy, Math.max(W,H)*0.74);
+  vig.addColorStop(0, "rgba(0,0,0,0)"); vig.addColorStop(1, "rgba(0,0,0,.40)");
+  g.fillStyle = vig; g.fillRect(0, 0, W, H);
+
+  // ---------- cant bubble ----------
+  if (Math.abs(S.aim.cant) > 0.0005){
+    const by2 = H - 54, half = 52;
+    g.strokeStyle = "rgba(230,222,196,.3)"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(W/2 - half, by2); g.lineTo(W/2 + half, by2); g.stroke();
+    const off = Math.max(-1, Math.min(1, S.aim.cant / d2r(6))) * half;
+    g.fillStyle = Math.abs(S.aim.cant) < d2r(0.5) ? "#8fa860" : "#c8872f";
+    g.beginPath(); g.arc(W/2 + off, by2, 4, 0, 7); g.fill();
+  }
+}
+
+/* Looking through the ZF41 you do not see the rifle at all: the scope body and
+   its mount fill the view and leave one small bright disc of glass. That tiny
+   field is the thing troops complained about, so it is drawn honestly small. */
+/* Rear aperture and hooded front post: what both the HK416 and the MP5 carry,
+   and near enough the same picture through either. The eye centres the post in
+   a ring it cannot focus on, which is why the ring is drawn as a soft mass. */
+function drawAperture(){
+  const cx = W/2, cy = H/2, F = CAM.focal, r = S.rifle, w = weapon();
+  const ang = v => v * F;
+  const R = Math.min(W, H);
+
+  /* A rear aperture sits barely 75 mm from the eye. It is so far inside the
+     near point that it does not read as a hole at all -- it ghosts out into a
+     soft halo and the shooter stops seeing it. So the ring is a hint, the view
+     through it stays open, and the FRONT sight carries the whole picture. */
+  // ---- the front sight, sharp, and the thing you actually aim with ----
+  const dF = 0.380;                      // eye to the front sight on a carbine
+  const pw   = ang(0.00090 / dF);        // half width of the post
+  const ph   = ang(0.00700 / dF);        // post standing proud of its base
+  const base = ang(0.01350 / dF);
+
+  /* The opening is sized against the front sight it has to frame, not against
+     the screen: tie it to a fraction of the canvas and it goes wrong the
+     moment the field of view changes. One and a half times the sight's own
+     half-width leaves it framed with air around it, as it should be. */
+  const reach = ang(0.01175 / dF);       // outer edge of the wings
+  const clear = reach * 1.55;
+  const halo = g.createRadialGradient(cx, cy, clear, cx, cy, clear*2.3);
+  halo.addColorStop(0, "rgba(8,10,12,0)");
+  halo.addColorStop(1, "rgba(6,7,9,.88)");
+  g.fillStyle = halo;
+  g.fillRect(0, 0, W, H);
+  g.save();
+  g.filter = "blur(" + Math.max(8, clear*0.22).toFixed(0) + "px)";
+  g.strokeStyle = "rgba(0,0,0,.34)";
+  g.lineWidth = clear*0.34;
+  g.beginPath(); g.arc(cx, cy, clear*1.18, 0, Math.PI*2); g.stroke();
+  g.restore();
+
+  if (w.front === "hood"){
+    // MP5: a post inside a ring, which is most of why its sight picture is quick
+    const hr = ang(0.00820 / dF);
+    g.save();
+    g.filter = "blur(1.6px)";
+    g.strokeStyle = "#0a0c0e";
+    g.lineWidth = Math.max(2, ang(0.00090 / dF) * 1.5);
+    g.beginPath(); g.arc(cx, cy + ph*0.55, hr, 0, Math.PI*2); g.stroke();
+    g.restore();
+  }
+
+  g.fillStyle = "#070809";               // the post itself
+  g.beginPath();
+  g.moveTo(cx - pw,      cy);
+  g.lineTo(cx + pw,      cy);
+  g.lineTo(cx + pw*1.25, cy + ph);
+  g.lineTo(cx - pw*1.25, cy + ph);
+  g.closePath(); g.fill();
+  g.fillStyle = "rgba(190,196,206,.30)"; // the sliver of light down one edge
+  g.fillRect(cx - pw, cy, Math.max(0.8, pw*0.45), ph);
+
+  if (w.front === "wings"){
+    /* The A-frame: two wings standing a little proud of the post they guard,
+       so the eye drops the post between them without hunting for it. */
+    const wx = ang(0.01050 / dF), ww = ang(0.00125 / dF);
+    for (const sgn of [-1, 1]){
+      const x = cx + sgn*wx;
+      g.fillStyle = "#0a0c0e";
+      g.beginPath();
+      g.moveTo(x - ww,      cy + ph*1.20);
+      g.lineTo(x - ww*0.55, cy - ph*0.26);
+      g.lineTo(x + ww*0.55, cy - ph*0.26);
+      g.lineTo(x + ww,      cy + ph*1.20);
+      g.closePath(); g.fill();
+      // a rim of light down the inner face, which is what makes them read
+      g.fillStyle = "rgba(188,194,204,.26)";
+      g.fillRect(x - sgn*ww*0.75, cy - ph*0.22, Math.max(0.8, ww*0.4), ph*1.34);
+    }
+  }
+
+  // front sight base, then the handguard running back to the eye
+  g.save();
+  g.filter = "blur(3px)";
+  g.fillStyle = "#15181c";
+  g.beginPath();
+  g.moveTo(cx - base*0.42, cy + ph);
+  g.lineTo(cx + base*0.42, cy + ph);
+  g.lineTo(cx + base,      cy + ph*2.6);
+  g.lineTo(cx - base,      cy + ph*2.6);
+  g.closePath(); g.fill();
+  g.restore();
+
+  g.save();
+  g.filter = "blur(12px)";
+  const hg = ang(0.0240 / 0.42);
+  g.fillStyle = "#121518";
+  g.beginPath();
+  g.moveTo(cx - hg*0.52, cy + ph*2.5); g.lineTo(cx + hg*0.52, cy + ph*2.5);
+  g.lineTo(cx + hg*1.8, H + 20);       g.lineTo(cx - hg*1.8, H + 20);
+  g.closePath(); g.fill();
+  const bs = ang(0.013 / 0.30);
+  g.fillStyle = "#2b3139";               // the carrier, reciprocating on the right
+  g.beginPath();
+  g.ellipse(cx + hg*0.72 + r.travel * bs*1.5, cy + ph*3.2, bs*0.5, bs*0.28, 0.2, 0, 7);
+  g.fill();
+  g.restore();
+
+  if (Math.abs(S.aim.cant) > 0.0005){
+    const by2 = H - 54, half = 52;
+    g.strokeStyle = "rgba(230,222,196,.3)"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx - half, by2); g.lineTo(cx + half, by2); g.stroke();
+    const off = Math.max(-1, Math.min(1, S.aim.cant / d2r(6))) * half;
+    g.fillStyle = Math.abs(S.aim.cant) < d2r(0.5) ? "#8fa860" : "#c8872f";
+    g.beginPath(); g.arc(cx + off, by2, 4, 0, 7); g.fill();
+  }
+  if (!S.showRange || !w.irons) return;
+  g.fillStyle = "rgba(206,200,172,.40)";
+  g.font = "10px ui-monospace, monospace";
+  g.textAlign = "center";
+  g.fillText(w.irons.name + "  ·  " + r.sight + " m", cx, H - 30);
+  g.textAlign = "left";
+}
+
+function drawZF41(){
+  const cx = W/2, cy = H/2, r = S.rifle;
+  const R = Math.min(W, H) * 0.30;
+
+  g.fillStyle = "#0b0d0f";
+  g.beginPath();
+  g.rect(0, 0, W, H);
+  g.arc(cx, cy, R, Math.PI*2, 0, true);
+  g.fill();
+
+  // ocular bevel
+  g.strokeStyle = "rgba(96,102,110,.45)"; g.lineWidth = Math.max(2, R*0.040);
+  g.beginPath(); g.arc(cx, cy, R + g.lineWidth/2, 0, Math.PI*2); g.stroke();
+  g.strokeStyle = "rgba(14,16,18,.95)"; g.lineWidth = 1;
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI*2); g.stroke();
+
+  // reticle: tapered post up from 6 o'clock, bars in from 3 and 9
+  g.fillStyle = "#0a0b0c";
+  const postW = R*0.055;
+  g.beginPath();
+  g.moveTo(cx - postW*0.30, cy);
+  g.lineTo(cx + postW*0.30, cy);
+  g.lineTo(cx + postW, cy + R);
+  g.lineTo(cx - postW, cy + R);
+  g.closePath(); g.fill();
+  const barH = Math.max(1.5, R*0.042);
+  g.fillRect(cx - R,        cy - barH/2, R*0.60, barH);
+  g.fillRect(cx + R*0.40,   cy - barH/2, R*0.60, barH);
+
+  // elevation drum on the mount, graduated 100-800
+  const dw = R*0.44, dh = R*0.66, dx = cx - R*1.62, dy = cy - dh*0.35;
+  g.fillStyle = "#191d21"; g.fillRect(dx, dy, dw, dh);
+  g.strokeStyle = "rgba(124,132,142,.16)"; g.lineWidth = 1;
+  for (let i = 1; i < 9; i++){
+    const yy = dy + dh*i/9;
+    g.beginPath(); g.moveTo(dx, yy); g.lineTo(dx + dw, yy); g.stroke();
+  }
+  g.fillStyle = "rgba(200,194,168,.85)";
+  g.font = Math.max(9, R*0.115) + "px ui-monospace, monospace";
+  g.textAlign = "center";
+  g.fillText(r.sight, dx + dw/2, dy + dh*0.58);
+  g.font = Math.max(7, R*0.070) + "px ui-monospace, monospace";
+  g.fillStyle = "rgba(200,194,168,.45)";
+  g.fillText("ZF41", dx + dw/2, dy - R*0.06);
+  g.textAlign = "left";
+
+  // enough of the rifle to read the bolt, below the glass
+  const bs = R*0.17;
+  g.save();
+  g.filter = "blur(7px)";
+  g.fillStyle = "#15181c";
+  g.fillRect(cx - R*0.52, cy + R*1.22, R*1.04, H);
+  g.translate(cx + R*0.46 + r.travel*R*0.30, cy + R*1.34);
+  g.rotate(-r.rot * 1.48);
+  g.strokeStyle = "#39414b"; g.lineWidth = bs*0.46; g.lineCap = "round";
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(bs*0.62, bs*1.30); g.stroke();
+  g.fillStyle = "#363d47";
+  g.beginPath(); g.ellipse(bs*0.70, bs*1.62, bs*0.50, bs*0.40, 0.3, 0, 7); g.fill();
+  g.restore();
+
+  const vig = g.createRadialGradient(cx, cy, R*0.55, cx, cy, R*1.25);
+  vig.addColorStop(0, "rgba(0,0,0,0)"); vig.addColorStop(1, "rgba(0,0,0,.55)");
+  g.fillStyle = vig; g.fillRect(0, 0, W, H);
+
+  if (Math.abs(S.aim.cant) > 0.0005){
+    const by2 = H - 54, half = 52;
+    g.strokeStyle = "rgba(230,222,196,.3)"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(W/2 - half, by2); g.lineTo(W/2 + half, by2); g.stroke();
+    const off = Math.max(-1, Math.min(1, S.aim.cant / d2r(6))) * half;
+    g.fillStyle = Math.abs(S.aim.cant) < d2r(0.5) ? "#8fa860" : "#c8872f";
+    g.beginPath(); g.arc(W/2 + off, by2, 4, 0, 7); g.fill();
+  }
+}
+
+/* ZF-D 3-18x. First focal plane: every subtension is derived from CAM.focal,
+   so a mil stays a mil at any magnification and ranging off the dots works
+   wherever the zoom happens to be. */
+function drawMilScope(){
+  const cx = W/2, cy = H/2, r = S.rifle;
+  const R = Math.min(W, H) * 0.40;
+  const mil = CAM.focal * 0.001;
+  const INK = "rgba(14,16,18,.92)";
+
+  g.fillStyle = "#06070a";
+  g.beginPath(); g.rect(0, 0, W, H); g.arc(cx, cy, R, Math.PI*2, 0, true); g.fill();
+  g.strokeStyle = "rgba(104,112,122,.40)"; g.lineWidth = Math.max(2, R*0.028);
+  g.beginPath(); g.arc(cx, cy, R + g.lineWidth/2, 0, Math.PI*2); g.stroke();
+
+  g.save();
+  g.beginPath(); g.arc(cx, cy, R, 0, Math.PI*2); g.clip();
+  const five = 5 * mil;
+
+  // heavy posts outside five mils, fine cross within
+  g.strokeStyle = INK; g.lineWidth = Math.max(2.5, mil*0.26);
+  g.beginPath();
+  g.moveTo(cx - R, cy);    g.lineTo(cx - five, cy);
+  g.moveTo(cx + five, cy); g.lineTo(cx + R, cy);
+  g.moveTo(cx, cy - R);    g.lineTo(cx, cy - five);
+  g.moveTo(cx, cy + five); g.lineTo(cx, cy + R);
+  g.stroke();
+  g.lineWidth = Math.max(0.8, mil*0.05);
+  g.beginPath();
+  g.moveTo(cx - five, cy); g.lineTo(cx + five, cy);
+  g.moveTo(cx, cy - five); g.lineTo(cx, cy + five);
+  g.stroke();
+
+  // the dots themselves, one per mil on each stadia
+  g.fillStyle = INK;
+  const dot = Math.max(1, mil*0.10);
+  for (let m = 1; m <= 5; m++)
+    for (const [dx, dy] of [[m,0],[-m,0],[0,m],[0,-m]]){
+      g.beginPath(); g.ellipse(cx + dx*mil, cy + dy*mil, dot, dot, 0, 0, 7); g.fill();
+    }
+  // half-mil hashes down the holdover stadia
+  g.strokeStyle = INK; g.lineWidth = Math.max(0.8, mil*0.05);
+  for (let m = 0.5; m <= 4.5; m += 1){
+    g.beginPath();
+    g.moveTo(cx - mil*0.17, cy + m*mil); g.lineTo(cx + mil*0.17, cy + m*mil);
+    g.stroke();
+  }
+  g.restore();
+
+  // ---- the scope's own readout: what the instrument knows about itself ----
+  const fs = Math.max(9, R*0.072);
+  g.font = fs + "px ui-monospace, monospace";
+  g.fillStyle = "rgba(150,208,170,.80)";
+  g.textAlign = "left";
+  g.fillText("ZF-D  " + S.milMag.toFixed(1) + "×", cx - R*0.70, cy - R*0.74);
+  g.textAlign = "right";
+  g.fillText((r.mils >= 0 ? "E +" : "E ") + r.mils.toFixed(1) + " MIL",
+             cx + R*0.70, cy - R*0.74);
+  g.textAlign = "center";
+  g.fillStyle = Math.abs(S.aim.cant) < d2r(0.5) ? "rgba(150,208,170,.55)" : "rgba(214,150,70,.9)";
+  g.fillText("CANT " + r2d(S.aim.cant).toFixed(1) + "°", cx, cy + R*0.80);
+
+  /* The rangefinder and the firing solution are assistance, so they stay
+     behind the range officer switch like every other aid. */
+  g.fillStyle = "rgba(150,208,170,.72)";
+  if (S.officer && S.lastSolution && S.lastSolution.c){
+    const sol = S.lastSolution, Rg = sol.aimed.range, c = sol.c;
+    const hold = -c.z / Rg * 1000;
+    const windMil = (c.y - c.sd - (sol.dryY != null ? sol.dryY : c.y - c.sd)) / Rg * 1000;
+    const lead = sol.aimed.mover ? targetVY(sol.aimed, S.aim.t) * c.t / Rg * 1000 : 0;
+    g.fillText("RNG " + Rg + "   HOLD " + hold.toFixed(1)
+               + "   WIND " + windMil.toFixed(1)
+               + (sol.aimed.mover ? "   LEAD " + lead.toFixed(1) : ""),
+               cx, cy + R*0.90);
+  } else {
+    g.fillStyle = "rgba(150,208,170,.30)";
+    g.fillText("RNG ---   SOLUTION OFF", cx, cy + R*0.90);
+  }
+  g.textAlign = "left";
+
+  // enough of the rifle to read the bolt
+  const bs = R*0.13;
+  g.save();
+  g.filter = "blur(7px)";
+  g.fillStyle = "#15181c";
+  g.fillRect(cx - R*0.42, cy + R*1.16, R*0.84, H);
+  g.translate(cx + R*0.38 + r.travel*R*0.24, cy + R*1.26);
+  g.rotate(-r.rot * 1.48);
+  g.strokeStyle = "#39414b"; g.lineWidth = bs*0.46; g.lineCap = "round";
+  g.beginPath(); g.moveTo(0, 0); g.lineTo(bs*0.62, bs*1.30); g.stroke();
+  g.fillStyle = "#363d47";
+  g.beginPath(); g.ellipse(bs*0.70, bs*1.62, bs*0.50, bs*0.40, 0.3, 0, 7); g.fill();
+  g.restore();
+}
+
+function drawScope(){
+  if (!S.scope) return;
+  g.save();
+  const R = Math.min(W, H) * 0.42;
+  /* The eyepiece surround is the rectangle with the field of view punched out
+     of it: the rect runs clockwise and the circle anticlockwise, so the nonzero
+     winding rule leaves a hole. The circle must be a FULL turn -- an anticlockwise
+     arc only closes if startAngle - endAngle reaches 2*PI, and anything short of
+     that leaves a black wedge sitting across the view. */
+  g.fillStyle = "#000";
+  g.beginPath();
+  g.rect(0, 0, W, H);
+  g.arc(W/2, H/2, R, Math.PI*2, 0, true);
+  g.fill();
+  g.strokeStyle = "rgba(220,214,190,.75)"; g.lineWidth = 1;
+  g.beginPath(); g.arc(W/2, H/2, R, 0, Math.PI*2); g.stroke();
+  // mil reticle
+  const milPx = 0.001 * CAM.focal;
+  g.strokeStyle = "rgba(220,214,190,.55)";
+  g.beginPath();
+  g.moveTo(W/2 - R*0.92, H/2); g.lineTo(W/2 + R*0.92, H/2);
+  g.moveTo(W/2, H/2 - R*0.92); g.lineTo(W/2, H/2 + R*0.92);
+  g.stroke();
+  g.strokeStyle = "rgba(220,214,190,.8)";
+  for (let m = -10; m <= 10; m++){
+    if (!m) continue;
+    const L = m % 5 === 0 ? 7 : 4;
+    g.beginPath();
+    g.moveTo(W/2 + m*milPx, H/2 - L); g.lineTo(W/2 + m*milPx, H/2 + L);
+    g.moveTo(W/2 - L, H/2 + m*milPx); g.lineTo(W/2 + L, H/2 + m*milPx);
+    g.stroke();
+  }
+  g.fillStyle = "rgba(220,214,190,.55)";
+  g.font = "10.5px ui-monospace, monospace";
+  g.textAlign = "center";
+  g.fillText("SPOTTING ×" + (S.cfg.fovDeg / S.scopeFov).toFixed(1)
+             + "   ·   scroll to zoom   ·   S to go back behind the rifle",
+             W/2, H/2 + R*0.84);
+  // zoom scale, so you can see where you are in the range
+  const zx = W/2 - R*0.30, zw = R*0.60, zy = H/2 + R*0.90;
+  const f = (Math.log(SCOPE_FOV_MAX / S.scopeFov)) / Math.log(SCOPE_FOV_MAX / SCOPE_FOV_MIN);
+  g.fillStyle = "rgba(220,214,190,.18)"; g.fillRect(zx, zy, zw, 2);
+  g.fillStyle = "rgba(220,214,190,.70)"; g.fillRect(zx + zw*f - 1, zy - 3, 2, 8);
+  g.textAlign = "left";
+  g.restore();
+}
+
+function drawPrompt(){
+  if (S.scope) return;          // the eyepiece caption says what is going on instead
+  if (inHand){
+    if (lockDenied && document.pointerLockElement !== cv){
+      g.fillStyle = "rgba(200,135,47,.75)";
+      g.font = "11px ui-monospace, monospace"; g.textAlign = "center";
+      g.fillText("pointer lock refused by the browser — aim with the mouse over the view",
+                 W/2, H - 70);
+      g.textAlign = "left";
+    }
+    return;
+  }
+  g.fillStyle = "rgba(13,15,13,.72)";
+  const bw = 268, bh = 44, bx = W/2 - bw/2, by = H*0.62;
+  g.fillRect(bx, by, bw, bh);
+  g.strokeStyle = "rgba(184,146,74,.6)"; g.lineWidth = 1; g.strokeRect(bx+.5, by+.5, bw-1, bh-1);
+  g.fillStyle = "#ded8c6"; g.textAlign = "center";
+  g.font = "13px ui-monospace, monospace";
+  g.fillText("Click here to take the rifle", W/2, by + 19);
+  g.fillStyle = "#8d8b7c"; g.font = "10.5px ui-monospace, monospace";
+  g.fillText("left mouse is the trigger · H for the drill", W/2, by + 34);
+  g.textAlign = "left";
+}
+
+/* Two-stage trigger. The first stage is slack you take up against almost no
+   resistance; the mark is where that slack runs out and the sear engages, the
+   "wall". A rifleman takes up to the wall, settles, then presses through it. */
+function drawTriggerBar(){
+  if (S.trigger.pull <= 0.001) return;
+  const w = 150, x = W/2 - w/2, y = H - 34, wall = x + w*TRIGGER_WALL;
+  const pull = Math.min(1, S.trigger.pull);
+  g.fillStyle = "rgba(13,15,13,.72)"; g.fillRect(x, y, w, 6);
+  g.fillStyle = "rgba(110,90,50,.45)"; g.fillRect(x, y, w*TRIGGER_WALL, 6);
+  g.fillStyle = pull >= TRIGGER_WALL ? "#d8ab58" : "#8a7340";
+  g.fillRect(x, y, w * pull, 6);
+  g.fillStyle = "rgba(240,234,210,.9)"; g.fillRect(wall - 0.5, y - 3, 1.5, 12);
+  g.font = "9px ui-monospace, monospace";
+  g.textAlign = "right";
+  g.fillStyle = "rgba(230,222,196,.5)"; g.fillText("take-up", wall - 5, y - 6);
+  g.textAlign = "left";
+  g.fillStyle = pull >= TRIGGER_WALL ? "rgba(216,171,88,.95)" : "rgba(230,222,196,.5)";
+  g.fillText(pull >= TRIGGER_WALL ? "wall — pressing through" : "wall", wall + 5, y - 6);
+  g.textAlign = "left";
+}
+
+/* ==========================================================================
+   9. UPDATE
+   ========================================================================== */
+function updateWind(dt){
+  S.gustPhase += dt;
+  const t = S.gustPhase;
+  S.windNow = Math.max(0, S.cfg.windSpeed + S.cfg.gust *
+    (0.62*Math.sin(t*0.37) + 0.38*Math.sin(t*1.13 + 1.2)));
+}
+function updateAim(dt){
+  const a = S.aim, st = STANCES[a.stance];
+  if (a.hold) a.holdT += dt; else a.holdT = Math.max(0, a.holdT - dt*1.7);
+  a.fatigue = Math.max(0, (a.holdT - 7) / 4);
+  const amp = st.sway * 0.001 * (a.hold ? 0.20 : 1) * (1 + a.fatigue*4.5);
+  const t = a.t, TP = 2*Math.PI;
+  a.swayEl = amp * (0.60*Math.sin(t*TP*0.22) + 0.25*Math.sin(t*TP*1.70 + 1.1)
+                  + 0.15*Math.sin(t*TP*3.30 + 2.3));
+  a.swayAz = amp * 0.75 * (0.50*Math.sin(t*TP*0.19 + 0.7) + 0.30*Math.sin(t*TP*2.10 + 2.0)
+                  + 0.20*Math.sin(t*TP*4.10 + 0.3));
+  a.recEl += a.recVel * dt;   a.recVel   -= (70*a.recEl + 11*a.recVel) * dt;
+  a.recAz += a.recVelAz * dt; a.recVelAz -= (70*a.recAz + 11*a.recVelAz) * dt;
+  a.el = a.elIn + a.swayEl;
+  a.az = a.azIn + a.swayAz;
+  S.trigger.lastMove = Math.max(0, S.trigger.lastMove - dt*6);
+  if (keys.has("KeyZ")) a.cant = Math.max(-d2r(15), a.cant - dt*0.35);
+  if (keys.has("KeyX")) a.cant = Math.min( d2r(15), a.cant + dt*0.35);
+}
+function updateTrigger(dt){
+  const T = S.trigger;
+  if (T.down && !S.scope){
+    T.pull = Math.min(1.05, T.pull + dt * (T.pull < TRIGGER_WALL ? 3.4 : 1.7));
+    if (T.pull >= 1 && !T.fired){ T.fired = true; T.pull = 1; pullTrigger(); }
+  } else {
+    T.pull = Math.max(0, T.pull - dt*5);
+    if (T.pull <= 0) T.fired = false;
+  }
+}
+
+/* ==========================================================================
+   10. PANELS
+   ========================================================================== */
+const $ = id => document.getElementById(id);
+let msgTimer = null;
+function msg(text){
+  const el = $("msg"); el.textContent = text; el.classList.add("show");
+  clearTimeout(msgTimer); msgTimer = setTimeout(() => el.classList.remove("show"), 2600);
+}
+const f1 = n => (n == null ? "—" : n.toFixed(1));
+const f2 = n => (n == null ? "—" : n.toFixed(2));
+
+let hudTick = 0;
+function updateHUD(){
+  if (++hudTick % 4) return;
+  const r = S.rifle, a = S.aim;
+  if (!usingMil()) $("sightV").textContent = r.sight;
+  $("sightLbl").textContent = usingMil() ? "ZF-D · elevation dial"
+    : usingZF41() ? "ZF41 · elevation drum" : "Lange Visier";
+  if (usingMil()){
+    $("sightV").textContent = (r.mils >= 0 ? "+" : "") + r.mils.toFixed(1);
+    $("sightUnit").textContent = "mils  ·  " + S.milMag.toFixed(1) + "×";
+  } else {
+    $("sightUnit").textContent = "metres";
+  }
+  $("sightAng").textContent = (sightAngle()*1000).toFixed(2) + " mrad";
+  $("driftV").textContent = f1(r.drift) + " mm";
+  $("boltRot").textContent = manualBolt()
+    ? (r.rot > 0.5 ? "handle up" : (r.rot > 0.05 ? "turning" : "handle down"))
+    : (r.travel > 0.5 ? "carrier back" : (r.travel > 0.05 ? "cycling" : "carrier forward"));
+  $("boltfill").style.left = (1 + r.travel * 88) + "%";
+  $("boltfill").style.width = "8px";
+  const st = $("boltState");
+  let state = "READY", cls = "tag t-ok";
+  if (jammed){ state = "JAM"; cls = "tag t-lock"; }
+  else if (r.heldOpen){ state = "HELD OPEN"; cls = "tag t-safe"; }
+  else if (r.rot > 0.05 || r.travel > 0.03){ state = "OPEN"; cls = "tag t-safe"; }
+  else if (!r.chamber){ state = "EMPTY"; cls = "tag t-safe"; }
+  else if (r.chamber.state === "spent"){ state = "FIRED CASE"; cls = "tag t-safe"; }
+  st.textContent = state; st.className = cls;
+  $("chamberV").textContent = r.chamber
+    ? (r.chamber.state === "live" ? r.chamber.ammo.name : "spent case")
+    : (r.raceway ? "case in raceway" : "empty");
+  $("cockV").textContent = r.cocked ? "cocked" : "struck";
+  const sv = $("safetyV");
+  sv.textContent = ["FEUER · left", "SICHER · centre", "SICHER · right"][r.safety];
+  sv.className = "tag " + ["t-fire","t-safe","t-lock"][r.safety];
+  $("safetyNote").textContent = ["bolt free, trigger live",
+    "trigger dead, bolt free", "trigger dead, bolt locked"][r.safety];
+  const cap = weapon().mag, seg = Math.min(cap, 10);
+  const rd = $("rounds");
+  if (rd.children.length !== seg){ rd.innerHTML = ""; for (let i=0;i<seg;i++) rd.appendChild(
+    Object.assign(document.createElement("div"), { className:"rd" })); }
+  const filled = Math.round(r.mag.length / cap * seg);
+  for (let i = 0; i < seg; i++)
+    rd.children[i].className = "rd" + (i < filled ? " full" : "");
+  $("magV").textContent = r.mag.length + " / " + weapon().mag + " in magazine";
+  $("beltV").textContent = r.loose + " loose";
+  $("stanceV").textContent = STANCES[a.stance].name;
+  $("holdV").textContent = a.fatigue > 0.4 ? "shaking" : (a.hold ? "breath held " + a.holdT.toFixed(0) + "s" : "breathing");
+  $("cantV").textContent = r2d(a.cant).toFixed(1) + "°";
+}
+
+let officerTick = 0;
+function updateOfficer(){
+  const box = $("officer");
+  box.classList.toggle("hidden", !S.officer);
+  box.classList.toggle("right0", !$("drawer").classList.contains("open"));
+  if (!S.officer || ++officerTick % 15) return;
+  const a = S.aim, eyeH = STANCES[a.stance].eye;
+  let aimed = null, best = 1e9;
+  for (const tg of TARGETS){
+    const ty = targetY(tg, a.t), tz = tg.base + tg.h/2;
+    const d = Math.hypot(Math.atan2(ty, tg.range) - a.az, Math.atan2(tz - eyeH, tg.range) - a.el);
+    if (d < best){ best = d; aimed = tg; }
+  }
+  if (!aimed){
+    ["ofSol","ofDrop","ofWind","ofSpin","ofTof","ofLead"].forEach(i => $(i).textContent = "—");
+    S.lastSolution = null; return;
+  }
+  refreshEnv();
+  const mv = effectiveMV(false);
+  const sightAng = sightAngle();
+  const tr = trajectory({ ammo:S.ammo, env:S.env, elev:sightAng, azim:0, mv,
+                          sightHeight:sightHeight(), maxRange:aimed.range + 5,
+                          dt:1e-3, sg:S.sg });
+  const c = tr.at(aimed.range);
+  $("ofSol").textContent = aimed.range + " m · " + aimed.label;
+  if (!c){ ["ofDrop","ofWind","ofSpin","ofTof","ofLead"].forEach(i => $(i).textContent = "short"); return; }
+  const dry = trajectory({ ammo:S.ammo,
+      env: makeEnv({ tempC:S.cfg.tempC, pressHpa:S.cfg.pressHpa, humidity:S.cfg.humidity,
+                     windSpeed:0, windClock:12, latitude:S.cfg.latitude, azimuth:S.cfg.azimuth,
+                     coriolis:0, spinDrift:0 }),
+      elev:sightAng, azim:0, mv, sightHeight:sightHeight(),
+      maxRange:aimed.range + 5, dt:1e-3, sg:0 });
+  const cd = dry.at(aimed.range);
+  $("ofDrop").textContent = (c.z*100).toFixed(1) + " cm";
+  $("ofWind").textContent = ((c.y - c.sd - cd.y)*100).toFixed(1) + " cm";
+  $("ofSpin").textContent = (c.sd*100).toFixed(1) + " cm";
+  $("ofTof").textContent  = c.t.toFixed(3) + " s";
+  const lead = targetVY(aimed, a.t) * c.t;
+  $("ofLead").textContent = aimed.mover ? (Math.abs(lead)*100).toFixed(0) + " cm "
+      + (lead > 0 ? "right" : "left") : "static";
+  S.lastSolution = { aimed, c, dryY: cd.y };
+}
+
+/* Elevation to add, in mils, to put the strike on the line of sight at R.
+   Dividing the drop by the range looks equivalent and is not: adding angle
+   lengthens the flight, so the honest answer needs the zeroing solver. At
+   800 m the shortcut is about 0.3 mil out, which is a 23 cm miss. */
+function dialFor(R, currentAngle, mv){
+  const need = solveElevation(R, S.ammo, S.env, mv, sightHeight(), S.sg);
+  return ((need - currentAngle) * 1000).toFixed(1);
+}
+
+function renderCard(){
+  refreshEnv();
+  const mv = effectiveMV(false);
+  const sightAng = sightAngle();
+  const tr = trajectory({ ammo:S.ammo, env:S.env, elev:sightAng, azim:0, mv,
+                          sightHeight:sightHeight(), maxRange:2050, dt:1e-3, sg:S.sg });
+  const dry = trajectory({ ammo:S.ammo,
+      env: makeEnv({ tempC:S.cfg.tempC, pressHpa:S.cfg.pressHpa, humidity:S.cfg.humidity,
+                     windSpeed:0, windClock:12, latitude:S.cfg.latitude, azimuth:S.cfg.azimuth,
+                     coriolis:0, spinDrift:0 }),
+      elev:sightAng, azim:0, mv, sightHeight:sightHeight(), maxRange:2050, dt:1e-3, sg:0 });
+  let html = "";
+  for (let R = 100; R <= 2000; R += 100){
+    const c = tr.at(R), cd = dry.at(R);
+    if (!c){ html += "<tr><td>" + R + "</td><td colspan='8'>beyond the trajectory</td></tr>"; break; }
+    const e = 0.5 * S.ammo.mass * c.speed * c.speed;
+    html += "<tr><td>" + R + "</td>"
+      + "<td>" + (c.z*100).toFixed(0) + "</td>"
+      + "<td>" + dialFor(R, sightAng, mv) + "</td>"
+      + "<td>" + ((c.y - c.sd - cd.y)*100).toFixed(0) + "</td>"
+      + "<td>" + (c.sd*100).toFixed(0) + "</td>"
+      + "<td>" + c.speed.toFixed(0) + "</td>"
+      + "<td>" + (c.speed/S.env.sos).toFixed(2) + "</td>"
+      + "<td>" + e.toFixed(0) + "</td>"
+      + "<td>" + c.t.toFixed(2) + "</td></tr>";
+  }
+  $("cardBody").innerHTML = html;
+  $("aRho").textContent = S.env.rho.toFixed(4) + " kg/m³";
+  $("aSos").textContent = S.env.sos.toFixed(1) + " m/s";
+  $("aDa").textContent  = densityAltitude(S.env.rho).toFixed(0) + " m";
+  $("aSg").textContent  = S.sg.toFixed(2) + (S.sg < 1.4 ? " — marginal" : "");
+  $("bMoa").textContent = (Math.atan((S.rifle.drift/1000)/0.503)/MOA).toFixed(2) + " MOA";
+  $("bAt300").textContent = (-(S.rifle.drift/1000)/0.503*300*100).toFixed(1) + " cm";
+}
+
+function renderLog(){
+  $("logBody").innerHTML = S.shots.map(s =>
+    "<tr><td>" + s.n + "</td><td>" + s.range + "</td><td>" + s.leaf + "</td>"
+    + "<td>" + (s.tof == null ? "—" : s.tof.toFixed(2)) + "</td>"
+    + "<td>" + (s.vimp == null ? "—" : s.vimp.toFixed(0)) + "</td>"
+    + "<td>" + (s.energy == null ? "—" : s.energy.toFixed(0) + " J") + "</td>"
+    + "<td>" + (s.vert == null ? "—" : (s.vert*100).toFixed(0)) + "</td>"
+    + "<td>" + (s.horz == null ? "—" : (s.horz*100).toFixed(0)) + "</td>"
+    + "<td class='" + (s.ok ? "pass" : "") + "'>" + s.hit + "</td></tr>").join("");
+}
+
+/* ==========================================================================
+   11. INPUT
+   ========================================================================== */
+const keys = new Set();
+/* The rifle is in your hands from the first click on the view. Pointer lock is
+   asked for because it makes aiming continuous, but nothing depends on getting
+   it: some browsers refuse it on file:// or inside a frame, and a dead trigger
+   with no explanation is not an acceptable way to find that out. */
+let inHand = false, lockDenied = false;
+function takeRifle(){
+  if (!inHand){ inHand = true; msg("Rifle in hand. Left mouse is the trigger."); }
+  Audio_.wake();
+  if (document.pointerLockElement === cv) return;
+  try {
+    const p = cv.requestPointerLock();
+    if (p && p.catch) p.catch(() => { lockDenied = true; });
+  } catch (err) { lockDenied = true; }
+}
+cv.addEventListener("contextmenu", e => e.preventDefault());
+/* Scroll zooms the spotting scope. Stepping the field of view by a ratio
+   rather than a fixed number of degrees keeps each notch feeling the same
+   at 2x and at 12x. */
+cv.addEventListener("wheel", e => {
+  if (S.scope){
+    e.preventDefault();
+    const step = Math.pow(1.12, e.deltaY > 0 ? 1 : -1);
+    S.scopeFov = Math.max(SCOPE_FOV_MIN, Math.min(SCOPE_FOV_MAX, S.scopeFov * step));
+    return;
+  }
+  if (usingMil()){                       // the ZF-D is a variable, so zoom it the same way
+    e.preventDefault();
+    const step = Math.pow(1.10, e.deltaY > 0 ? -1 : 1);
+    S.milMag = Math.max(MIL_MAG_MIN, Math.min(MIL_MAG_MAX, S.milMag * step));
+  }
+}, { passive: false });
+cv.addEventListener("mousedown", e => {
+  e.preventDefault();
+  const wasInHand = inHand;
+  takeRifle();
+  if (!wasInHand) return;           // picking the rifle up is not a trigger press
+  if (e.button === 0) S.trigger.down = true;
+  if (e.button === 2) S.aim.hold = true;
+});
+document.addEventListener("mousemove", e => {
+  if (!inHand) return;
+  if (document.pointerLockElement !== cv && e.target !== cv) return;
+  const radPerPx = CAM ? (CAM.fov / H) : 0.0004;
+  const dAz = (e.movementX || 0) * radPerPx, dEl = -(e.movementY || 0) * radPerPx;
+  S.aim.azIn = Math.max(-d2r(16), Math.min(d2r(16), S.aim.azIn + dAz));
+  S.aim.elIn = Math.max(-d2r(6),  Math.min(d2r(12), S.aim.elIn + dEl));
+  S.trigger.lastMove = Math.min(2, S.trigger.lastMove + Math.hypot(dAz, dEl) * 60);
+});
+document.addEventListener("mouseup", e => {
+  if (e.button === 0) S.trigger.down = false;
+  if (e.button === 2) S.aim.hold = false;
+});
+// losing the lock must not leave the trigger held down
+document.addEventListener("pointerlockchange", () => {
+  if (document.pointerLockElement !== cv){ S.trigger.down = false; S.aim.hold = false; }
+});
+window.addEventListener("blur", () => {
+  S.trigger.down = false; S.aim.hold = false; keys.clear();
+  S.rifle.travelTarget = S.rifle.travel;
+});
+
+const HELP = [
+  "1  lift bolt handle, unlock       2  hold: draw the bolt rearward",
+  "3  hold: push the bolt forward    4  turn the handle down, lock",
+  "Shift+3  depress the follower     L  stripper clip      K  single round",
+  "C  safety (Shift+C reverse)       [ ]  Lange Visier leaf",
+  "Z X  cant the rifle   V  level it   F  stance",
+  "S  spotting scope, then scroll to zoom it   P  change the optic",
+  "[ ]  sight: 100 m steps on irons, 0.1 mil on the ZF-D (Shift for 1 mil)",
+  "O  range officer   G  trajectory trace   M  range markings   Tab  drawer",
+  "left mouse  two-stage trigger     right mouse  hold your breath"
+].join("\n");
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "Tab"){ e.preventDefault(); toggleDrawer(); return; }
+  if (keys.has(e.code) && e.code !== "KeyZ" && e.code !== "KeyX") return;
+  keys.add(e.code);
+  switch (e.code){
+    case "Digit1": boltLift(); break;
+    case "Digit2": boltDrawStart(); break;
+    case "Digit3": e.shiftKey ? depressFollower() : boltPushStart(); break;
+    case "Digit4": boltLower(); break;
+    case "KeyC": cycleSafety(e.shiftKey); break;
+    case "BracketLeft":  adjustSight(-1, e.shiftKey); break;
+    case "BracketRight": adjustSight( 1, e.shiftKey); break;
+    case "KeyL": loadClip(); break;
+    case "KeyK": loadSingle(); break;
+    case "KeyV": S.aim.cant = 0; msg("Rifle levelled."); break;
+    case "KeyF": S.aim.stance = (S.aim.stance + 1) % STANCES.length;
+                 msg("Position: " + STANCES[S.aim.stance].name); break;
+    case "KeyS": S.scope = !S.scope; msg(S.scope ? "Spotting scope." : "Back behind the rifle."); break;
+    case "KeyO": S.officer = !S.officer; msg(S.officer ? "Range officer on." : "Range officer off."); break;
+    case "KeyG": S.showTrace = !S.showTrace; msg(S.showTrace ? "Trace on." : "Trace off."); break;
+    case "KeyM": S.showRange = !S.showRange;
+                 $("wMarks").value = S.showRange ? "1" : "0";
+                 msg(S.showRange ? "Range markings shown." : "Range markings hidden."); break;
+    case "KeyP": {                       // cycle only through what this weapon takes
+      const list = weapon().optics;
+      fitOptic(list[(list.indexOf(S.rifle.optic) + 1) % list.length]);
+      break; }
+    case "KeyH": msg(HELP); break;
+  }
+});
+document.addEventListener("keyup", e => {
+  keys.delete(e.code);
+  if (e.code === "Digit2" || e.code === "Digit3") boltStopTravel();
+});
+function setSight(v){
+  const sp = sightSpan();
+  S.rifle.sight = Math.max(sp.min, Math.min(sp.max, v));
+  Audio_.click(520, 0.04, 0.16);
+  msg("Lange Visier: " + S.rifle.sight + " m");
+  renderCard();
+}
+function fitWeapon(id){
+  const w = WEAPONS.find(x => x.id === id);
+  if (!w) return;
+  S.weapon = id;
+  S.cfg.twist = w.twist;
+  S.cfg.precisionMOA = w.precision;
+  S.cfg.sightHeight = w.sightH;
+  S.ammo  = cloneAmmo(AMMO_LIB.find(a => a.id === w.ammo));
+  S.bench = cloneAmmo(S.ammo);
+  S.benchId = w.ammo;
+  // keep the fitted optic only if this weapon can take it
+  if (!w.optics.includes(S.rifle.optic)) S.rifle.optic = w.optics[0];
+  const sp = sightSpan();
+  S.rifle.sight = Math.max(sp.min, Math.min(sp.max, sp.step * Math.round(S.rifle.sight / sp.step)));
+  if (S.rifle.sight < sp.min) S.rifle.sight = sp.min;
+  S.rifle.mag = []; S.rifle.chamber = null; S.rifle.raceway = null;
+  const turn = w.action === "bolt" ? 1 : 0;
+  S.rifle.rot = turn; S.rifle.rotTarget = turn;
+  S.rifle.travel = 1; S.rifle.travelTarget = 1;
+  S.rifle.auto = false; S.rifle.autoReturning = false; jammed = false;
+  S.rifle.cocked = true;            // handed to you with the action open
+  S.rifle.loose = 40 * (w.mag > 10 ? 2 : 1);
+  S.rifle.heldOpen = true;
+  $("bWeapon").value = id;
+  $("bBarrel").value = (w.barrel*1000).toFixed(0);
+  $("bTwist").value  = (w.twist*1000).toFixed(0);
+  $("bSH").value     = (w.sightH*1000).toFixed(0);
+  $("bPrec").value   = w.precision;
+  $("bCal").textContent    = cartridgeBy(w.cal).name;
+  $("bAction").textContent = w.action === "bolt" ? "manual bolt" : "self-loading";
+  $("wepName").firstChild.nodeValue = w.name;
+  $("wepCal").innerHTML = cartridgeBy(w.cal).name + " &middot; " + (w.barrel*1000).toFixed(0) + " mm";
+  $("mPowder").value = S.ammo.powder;
+  $("drill").innerHTML = w.action === "bolt"
+    ? "<kbd>1</kbd> lift handle &middot; unlock<br><kbd>2</kbd> hold to draw rearward<br>"
+      + "<kbd>3</kbd> hold to push forward<br><kbd>4</kbd> turn handle down &middot; lock<br>"
+      + "<span style='color:var(--brass-dim)'>each motion is independent</span>"
+    : "<kbd>2</kbd> hold to draw the charging handle<br><kbd>3</kbd> let it run forward<br>"
+      + "<span style='color:var(--brass-dim)'>no handle to turn: it cycles itself "
+      + "after every shot, so 1 and 4 do nothing</span>";
+  renderChips(); fillBench(S.bench); refreshEnv(); renderCard();
+  msg(w.name + ", " + cartridgeBy(w.cal).name + ". Bolt back and empty — charge it.");
+}
+
+function adjustSight(dir, big){
+  if (usingMil()){
+    // the ZF-D is dialled in angle, not in range: 0.1 mil a click
+    const step = big ? 1.0 : 0.1;
+    S.rifle.mils = Math.max(-2, Math.min(30, +(S.rifle.mils + dir*step).toFixed(1)));
+    Audio_.click(660, 0.03, 0.13);
+    msg("Elevation " + (S.rifle.mils >= 0 ? "+" : "") + S.rifle.mils.toFixed(1) + " mil");
+    renderCard();
+    return;
+  }
+  const sp = sightSpan();
+  setSight(S.rifle.sight + dir * sp.step);
+}
+function fitOptic(which){
+  if (!weapon().optics.includes(which)){
+    return msg(weapon().name + " cannot take that sight.");
+  }
+  S.rifle.optic = which;
+  // the drum only goes to 800, so bring an out-of-range leaf setting back in
+  S.rifle.sight = Math.max(100, Math.min(sightMax(), S.rifle.sight));
+  const sel = $("bOptic"); if (sel.value !== which) sel.value = which;
+  Audio_.metal(0.25);
+  renderCard();
+  msg(which === "zf41"
+    ? "ZF41 fitted. 1.5×, drum to 800 m. Its axis rides 48 mm over the bore against the notch's 25, so it carries its own zero."
+    : which === "mil"
+    ? "ZF-D 3-18× fitted. Zeroed at 100 m, dialled in mils with [ and ]. Scroll to zoom; first focal plane, so the dots stay true."
+    : "Optics stripped off. Back to the "
+      + (weapon().irons ? weapon().irons.name : "iron sights") + ".");
+}
+function toggleDrawer(){
+  const d = $("drawer"); d.classList.toggle("open");
+  if (d.classList.contains("open")){ document.exitPointerLock(); renderCard(); }
+}
+document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section.tab").forEach(s =>
+    s.classList.toggle("on", s.dataset.tab === b.dataset.tab));
+}));
+
+/* ---- form wiring ------------------------------------------------------- */
+const bindNum = (id, key, after) => {
+  const el = $(id);
+  el.value = S.cfg[key];
+  el.addEventListener("input", () => {
+    const v = parseFloat(el.value);
+    if (!isNaN(v)){ S.cfg[key] = v; if (after) after(); renderCard(); }
+  });
+};
+["aTemp:tempC","aPres:pressHpa","aHum:humidity","aWind:windSpeed","aWindDir:windClock",
+ "aGust:gust","aLat:latitude","aAz:azimuth","bPrec:precisionMOA","bFov:fovDeg"]
+  .forEach(p => { const [id, key] = p.split(":"); bindNum(id, key); });
+$("aAlt").addEventListener("input", () => {
+  const h = parseFloat($("aAlt").value);
+  if (isNaN(h)) return;
+  S.cfg.altitude = h; S.cfg.pressHpa = pressureAtAltitude(h);
+  $("aPres").value = S.cfg.pressHpa.toFixed(0); renderCard();
+});
+$("aCor").addEventListener("change", () => { S.cfg.coriolis = +$("aCor").value; renderCard(); });
+$("aSpin").addEventListener("change", () => { S.cfg.spinDrift = +$("aSpin").value; renderCard(); });
+$("bOptic").addEventListener("change", () => fitOptic($("bOptic").value));
+$("bJam").addEventListener("change", () => { S.cfg.jams = +$("bJam").value; });
+$("bHold").addEventListener("change", () => { S.cfg.holdToStroke = +$("bHold").value; });
+$("bTwist").addEventListener("input", () => {
+  const v = parseFloat($("bTwist").value);
+  if (!isNaN(v) && v > 50){ S.cfg.twist = weapon().twist = v/1000; renderCard(); }});
+$("bBarrel").addEventListener("input", () => {
+  const v = parseFloat($("bBarrel").value);
+  if (!isNaN(v) && v >= 50){ weapon().barrel = v/1000; updateBenchDerived(); renderCard(); }});
+$("bWeapon").addEventListener("change", () => fitWeapon($("bWeapon").value));
+$("bSH").addEventListener("input", () => {
+  const v = parseFloat($("bSH").value);
+  if (!isNaN(v) && v > 0){ S.cfg.sightHeight = weapon().sightH = v/1000; renderCard(); }});
+$("bDrift").addEventListener("input", () => {
+  const v = parseFloat($("bDrift").value); if (!isNaN(v)){ S.rifle.drift = v; renderCard(); }});
+
+function fillBench(a){
+  $("mName").value = a.name; $("mMass").value = (a.mass*1000).toFixed(2);
+  $("mPowder").value = a.powder || "ns";
+  $("mCharge").value = ((a.charge || 0)*1000).toFixed(2);
+  $("mDrag").value = a.drag; $("mBC").value = a.bc;
+  $("mDia").value = (a.dia*1000).toFixed(2); $("mLen").value = (a.len*1000).toFixed(1);
+  $("mSD").value = a.sd; $("mTemp").value = a.tempSens;
+  $("mCore").value = (a.pen != null ? a.pen : 0.25).toFixed(2);
+  updateBenchDerived();
+}
+
+/* Everything on the bench that is a consequence rather than a choice. Runs on
+   every keystroke, so loading a heavier bullet behind the same charge shows
+   the velocity fall away as you type it. */
+function updateBenchDerived(){
+  const mass   = parseFloat($("mMass").value)/1000;
+  const charge = parseFloat($("mCharge").value)/1000;
+  const pid    = $("mPowder").value;
+  const dia    = parseFloat($("mDia").value)/1000;
+  const bc     = parseFloat($("mBC").value);
+  if (!(mass > 0) || !(charge >= 0) || !(dia > 0)) return;
+
+  const cal = weapon().cal, barrel = weapon().barrel;
+  const mv = mvFromCharge(charge, mass, pid, cal, barrel);
+  const P  = peakPressure(charge, mass, pid, cal);
+  const fill = caseFill(charge, pid, cal);
+  $("mMV").value = mv.toFixed(0);
+
+  const pEl = $("mPress");
+  pEl.textContent = (P/1e6).toFixed(0) + " MPa";
+  pEl.className = P > P_PROOF ? "over" : P > P_CIP ? "hot" : "";
+  const fEl = $("mFill");
+  fEl.textContent = (fill*100).toFixed(0) + "% of the case";
+  fEl.className = fill > 1.08 ? "over" : fill > 1.0 ? "hot" : "";
+
+  const sdEn = mass / (dia*dia) / LB_IN2_TO_KG_M2;
+  $("mSDen").textContent = sdEn.toFixed(3) + " lb/in²";
+  const i = sdEn / bc;
+  const iEl = $("mForm");
+  iEl.textContent = i.toFixed(3) + " (" + $("mDrag").value + ")";
+  iEl.className = (i < 0.3 || i > 3) ? "over" : "";
+  // fly it the 100 m rather than guessing the arrival velocity
+  const probe = { mass, dia, bc, drag: $("mDrag").value, pen: parseFloat($("mCore").value) };
+  let v100 = mv;
+  if (bc > 0 && mv > 0){
+    const c = trajectory({ ammo:probe, env:S.env || REF_ENV, elev:0.002, azim:0, mv,
+                           sightHeight:0.025, maxRange:105, dt:1e-3, sg:0 }).at(100);
+    if (c) v100 = c.speed;
+  }
+  $("mPen").textContent = penetrationMM(probe, v100).toFixed(0) + " mm of steel at 100 m";
+  $("mE").textContent = (0.5*mass*mv*mv).toFixed(0) + " J";
+  $("mRec").textContent = ((mass*mv + charge*1550)/4.0).toFixed(2) + " m/s";
+}
+function renderChips(){
+  $("ammoChips").innerHTML = ammoFor(weapon().cal).map(a =>
+    "<div class='chip" + (S.benchId === a.id ? " on" : "") + "' data-id='" + a.id + "' title='"
+    + a.note.replace(/'/g, "&#39;") + "'>" + a.name + "</div>").join("");
+  document.querySelectorAll("#ammoChips .chip").forEach(c => c.addEventListener("click", () => {
+    S.benchId = c.dataset.id;
+    S.bench = cloneAmmo(AMMO_LIB.find(a => a.id === S.benchId));
+    fillBench(S.bench); renderChips();
+    msg(S.bench.note);
+  }));
+}
+["mMass","mCharge","mPowder","mDia","mBC","mDrag","mCore"].forEach(id =>
+  $(id).addEventListener("input", updateBenchDerived));
+$("mPowder").addEventListener("change", updateBenchDerived);
+$("mCore").addEventListener("change", updateBenchDerived);
+$("mApply").addEventListener("click", () => {
+  const a = {
+    id:"custom", name:$("mName").value || "custom load",
+    mass: parseFloat($("mMass").value)/1000,
+    powder: $("mPowder").value, charge: parseFloat($("mCharge").value)/1000,
+    drag: $("mDrag").value, bc: parseFloat($("mBC").value),
+    dia: parseFloat($("mDia").value)/1000, len: parseFloat($("mLen").value)/1000,
+    sd: parseFloat($("mSD").value), tempSens: parseFloat($("mTemp").value),
+    pen: parseFloat($("mCore").value), note:"bench load"
+  };
+  a.cal = weapon().cal;
+  a.mv = mvFromCharge(a.charge, a.mass, a.powder, a.cal, weapon().barrel);
+  for (const k of ["mass","mv","bc","dia","len","sd","tempSens"])
+    if (isNaN(a[k]) || a[k] <= 0 && k !== "tempSens") return msg("Check the " + k + " figure.");
+  S.ammo = a; renderCard();
+  msg("Loaded: " + a.name + ". Rounds already in the magazine keep what they are.");
+});
+$("mReset").addEventListener("click", () => {
+  S.benchId = weapon().ammo;
+  S.bench = cloneAmmo(AMMO_LIB.find(a => a.id === S.benchId));
+  S.ammo  = cloneAmmo(S.bench);
+  fillBench(S.bench); renderChips(); renderCard(); msg("Back to " + S.ammo.name + ".");
+});
+
+/* ---- range wizard ------------------------------------------------------ */
+function renderTargetList(){
+  $("wList").innerHTML = TARGETS.map(t =>
+    "<tr><td>" + t.range + " m</td>"
+    + "<td>" + (t.off > 0 ? "+" : "") + t.off + "</td>"
+    + "<td>" + t.label + (t.armour ? " " + t.armour + " mm" : "") + "</td>"
+    + "<td>" + (t.mover ? "±" + t.mover.amp + " m @ " + t.mover.speed + "</td>" : "static</td>")
+    + "<td><button class='act' data-kill='" + t.id + "' "
+    + "style='padding:1px 6px;line-height:1.1'>&times;</button></td></tr>").join("");
+  $("wList").querySelectorAll("button[data-kill]").forEach(b =>
+    b.addEventListener("click", () => removeTarget(+b.dataset.kill)));
+}
+$("wAdd").addEventListener("click", () => {
+  const range = Math.round(parseFloat($("wRange").value));
+  const off   = parseFloat($("wOff").value);
+  const amp   = parseFloat($("wAmp").value);
+  const speed = parseFloat($("wSpeed").value);
+  if (!(range >= 10 && range <= 2000)) return msg("Put it between 10 and 2000 m.");
+  if (!isFinite(off)) return msg("That lane is not a number.");
+  TARGETS.push(makeTarget($("wType").value, range, off, isFinite(amp) ? amp : 0, speed));
+  sortTargets(); renderTargetList();
+  msg("Placed: " + TARGET_TYPES.find(t => t.id === $("wType").value).label
+      + " at " + range + " m.");
+});
+$("wClear").addEventListener("click", () => {
+  TARGETS.length = 0; S.impacts = []; renderTargetList(); msg("Range cleared.");
+});
+$("wReset").addEventListener("click", () => { restoreDefaultRange(); msg("Standard range restored."); });
+$("wMarks").addEventListener("change", () => { S.showRange = $("wMarks").value === "1"; });
+
+/* ==========================================================================
+   12. MODEL CHECKS
+   ========================================================================== */
+function runChecks(){
+  const out = [];
+  const ok = (cond, line) => out.push((cond ? "  PASS  " : "  FAIL  ") + line);
+  const ref = AMMO_LIB[0];
+  const sgRef = millerSg(ref, 0.240, REF_ENV.rho, ref.mv);
+  out.push("7,92 x 57 s.S. — ICAO standard, 300 m zero");
+  out.push("");
+
+  const e300 = WEAPONS[0].ironTable[300];
+  const tr = trajectory({ ammo:ref, env:REF_ENV, elev:e300, azim:0, mv:ref.mv,
+                          sightHeight:REF_SH, maxRange:900, dt:2.5e-4, sg:sgRef });
+  const c100 = tr.at(100), c300 = tr.at(300), c600 = tr.at(600);
+
+  out.push("remaining velocity at 100 m   " + c100.speed.toFixed(0) + " m/s   (published ~705)");
+  ok(Math.abs(c100.speed - 705) < 20, "within 20 m/s of the published figure");
+  out.push("time of flight to 100 m       " + c100.t.toFixed(3) + " s     (published ~0.137)");
+  ok(Math.abs(c100.t - 0.137) < 0.012, "within 12 ms");
+  out.push("time of flight to 600 m       " + c600.t.toFixed(3) + " s     (Schusstafel ~0.97)");
+  ok(c600.t > 0.88 && c600.t < 1.08, "inside the firing-table band");
+
+  // mid-range rise on a 300 m zero
+  let rise = -1e9, riseAt = 0;
+  for (const p of tr.path){ if (p.p[0] > 300) break; if (p.p[2] > rise){ rise = p.p[2]; riseAt = p.p[0]; } }
+  out.push("mid-range rise, 300 m zero    " + (rise*100).toFixed(1) + " cm at "
+           + riseAt.toFixed(0) + " m   (Scheitelhohe ~20 at ~170)");
+  ok(rise > 0.15 && rise < 0.26, "matches the published vertex");
+  out.push("");
+
+  // integrator convergence: halve the step, see how far the strike moves
+  const A = trajectory({ ammo:ref, env:REF_ENV, elev:e300, azim:0, mv:ref.mv,
+                         sightHeight:REF_SH, maxRange:820, dt:5e-4, sg:sgRef }).at(800);
+  const B = trajectory({ ammo:ref, env:REF_ENV, elev:e300, azim:0, mv:ref.mv,
+                         sightHeight:REF_SH, maxRange:820, dt:2.5e-4, sg:sgRef }).at(800);
+  const dz = Math.abs(A.z - B.z)*1000;
+  out.push("RK4 step halved, 800 m strike moves " + dz.toFixed(3) + " mm");
+  ok(dz < 10, "under 1 cm, so dt = 0.5 ms is fine enough");
+  out.push("");
+
+  // every graduation must zero at its own range under its own conditions
+  let worst = 0, worstR = 0;
+  for (let R = 100; R <= 2000; R += 100){
+    const t = trajectory({ ammo:ref, env:REF_ENV, elev:WEAPONS[0].ironTable[R], azim:0, mv:ref.mv,
+                           sightHeight:REF_SH, maxRange:R + 5, dt:5e-4, sg:sgRef });
+    const c = t.at(R);
+    const err = c ? Math.abs(c.z) : 99;
+    if (err > worst){ worst = err; worstR = R; }
+  }
+  out.push("Lange Visier, worst graduation error " + (worst*100).toFixed(2)
+           + " cm at " + worstR + " m");
+  ok(worst < 0.05, "every leaf setting zeroes at its own range");
+  out.push("");
+
+  // drag model sanity: a constant Cd cannot do this
+  const mach = [2.2, 1.2, 1.0, 0.85, 0.6];
+  out.push("G7 Cd across the transonic region");
+  out.push("   " + mach.map(m => "M" + m.toFixed(2) + " " + cdStd(DRAG.G7, m).toFixed(4)).join("   "));
+  ok(cdStd(DRAG.G7, 1.1) > 2.2 * cdStd(DRAG.G7, 0.6), "the transonic rise is there");
+
+  // moving target lead must equal speed x time of flight
+  const mover = TARGETS.find(t => t.range === 600 && t.mover);
+  const cm = mover ? tr.at(mover.range) : null;
+  out.push("");
+  if (mover && cm) out.push("600 m figure at " + mover.mover.speed + " m/s needs "
+           + (mover.mover.speed * cm.t * 100).toFixed(0) + " cm of lead ("
+           + (mover.mover.speed * cm.t / mover.range * 1000).toFixed(2) + " mrad)");
+
+  out.push("");
+  out.push("Sg = " + sgRef.toFixed(2) + ", air density " + REF_ENV.rho.toFixed(4)
+           + " kg/m³, speed of sound " + REF_ENV.sos.toFixed(1) + " m/s");
+
+  const text = out.join("\n")
+    .replace(/  PASS  /g, "  PASS  ");
+  $("valOut").textContent = text;
+  console.log("%c98k model checks", "color:#b8924a", "\n" + text);
+  $("valOut").innerHTML = $("valOut").textContent
+    .replace(/ {2}PASS {2}/g, "  <span class='pass'>PASS</span>  ")
+    .replace(/ {2}FAIL {2}/g, "  <span class='fail'>FAIL</span>  ");
+}
+$("valRerun").addEventListener("click", runChecks);
+
+/* ==========================================================================
+   13. BOOT
+   ========================================================================== */
+function boot(){
+  resize();
+  /* Give every service load the charge that actually produces its published
+     muzzle velocity, so the historical figures survive the change of input
+     and the bench starts from real numbers rather than invented ones. */
+  for (const a of AMMO_LIB){
+    if (!a.powder) a.powder = "ns";
+    if (!a.cal)    a.cal    = "792x57";
+    const bar = cartridgeBy(a.cal).refBarrel;
+    if (a.charge == null) a.charge = chargeFromMV(a.mv, a.mass, a.powder, a.cal, bar);
+    else                  a.mv     = mvFromCharge(a.charge, a.mass, a.powder, a.cal, bar);
+  }
+  S.ammo  = cloneAmmo(AMMO_LIB[0]);
+  S.bench = cloneAmmo(AMMO_LIB[0]);
+  $("mPowder").innerHTML = POWDERS.map(
+    pw => "<option value='" + pw.id + "'>" + pw.name + "</option>").join("");
+  /* Every weapon gets its sights graduated against its own cartridge, sight
+     height and twist: a table built for the Mauser means nothing on an MP5. */
+  for (const w of WEAPONS){
+    const ref = AMMO_LIB.find(a => a.id === w.ammo);
+    if (w.irons)
+      w.ironTable = buildSightTable(ref, w.sightH, w.twist, w.irons.min, w.irons.max, w.irons.step);
+    else
+      w.ironTable = {};
+    w.milZero = buildSightTable(ref, w.sightH + 0.030, w.twist, 100, 100, 100)[100];
+  }
+  S.sightTable = WEAPONS[0].ironTable;
+  S.zf41Table  = buildSightTable(AMMO_LIB[0], ZF41_SH, 0.240, 100, ZF41_MAX, 100);
+  refreshEnv();
+  S.rifle.mag = [];
+  for (let i = 0; i < 5; i++) S.rifle.mag.push(cloneAmmo(S.ammo));
+  S.rifle.loose -= 5;
+  S.rifle.chamber = { state:"live", ammo:cloneAmmo(S.ammo) };
+  DEFAULT_TARGETS = JSON.parse(JSON.stringify(TARGETS));
+  $("bWeapon").innerHTML = WEAPONS.map(
+    w => "<option value='" + w.id + "'>" + w.name + "</option>").join("");
+  $("wType").innerHTML = TARGET_TYPES.map(
+    t => "<option value='" + t.id + "'>" + t.label + "</option>").join("");
+  renderTargetList();
+  fillBench(S.bench); renderChips(); renderCard(); renderLog(); runChecks();
+  msg("Rifle loaded, bolt locked, safety at FEUER. Press H for the drill.");
+
+  let last = performance.now();
+  (function frame(now){
+    const dt = Math.min(0.05, (now - last)/1000); last = now;
+    S.aim.t += dt;
+    updateWind(dt); updateBolt(dt); updateAim(dt); updateTrigger(dt);
+    buildCamera();
+    drawWorld(); drawTargets(S.aim.t); drawSplashes(); drawTraces();
+    drawRifle(); drawScope(); drawTriggerBar(); drawPrompt();
+    updateHUD(); updateOfficer();
+    requestAnimationFrame(frame);
+  })(performance.now());
+}
+boot();
+</script>
+</body>
+</html>
