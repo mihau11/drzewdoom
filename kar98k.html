@@ -79,6 +79,9 @@ button.act:hover{background:var(--brass-dim);color:#1a1a16}
 .hr{height:1px;background:var(--line);margin:14px 0}
 .pass{color:var(--live)} .fail{color:var(--bad)}
 .hot{color:var(--warn)} .over{color:var(--bad)}
+td.trans{color:var(--warn);font-weight:600}
+td.trans::after{content:" 8";opacity:.6}
+td.sub{color:var(--fg-dim)}
 .fld input[readonly]{color:var(--brass);background:#101310;border-style:dashed}
 pre.val{font-size:10.5px;line-height:1.65;margin:0;white-space:pre-wrap;color:var(--fg-dim)}
 
@@ -176,7 +179,9 @@ pre.val{font-size:10.5px;line-height:1.65;margin:0;white-space:pre-wrap;color:va
     <section class="tab on" data-tab="card">
       <h2>Firing table</h2>
       <p class="note">Computed live by RK4 integration of the current load through the current
-      air, with the Lange Visier set as shown. Drop is measured from the line of sight.</p>
+      air, with the sight set as shown. Drop is measured from the line of sight. A Mach figure
+      marked &asymp; is inside the transonic band, where the bullet is being upset and groups
+      open up; a dim one is subsonic.</p>
       <table><thead><tr><th>Range</th><th>Drop</th><th>Dial</th><th>Drift</th><th>Spin</th><th>V</th><th>Mach</th><th>E</th><th>TOF</th></tr></thead>
       <tbody id="cardBody"></tbody></table>
     </section>
@@ -222,6 +227,11 @@ pre.val{font-size:10.5px;line-height:1.65;margin:0;white-space:pre-wrap;color:va
       <div class="fld"><label>Ballistic coefficient</label><input id="mBC" type="number" step="0.001"></div>
       <div class="fld"><label>Bullet diameter mm</label><input id="mDia" type="number" step="0.01"></div>
       <div class="fld"><label>Bullet length mm</label><input id="mLen" type="number" step="0.1"></div>
+      <div class="fld"><label>Transonic behaviour</label><select id="mTrans">
+        <option value="0.90">Sails through, match boat-tail</option>
+        <option value="0.72">Good, service boat-tail</option>
+        <option value="0.55">Poor, short or flat base</option>
+        <option value="0.40">Upsets badly, blunt</option></select></div>
       <div class="fld"><label>Core</label><select id="mCore">
         <option value="0.25">Lead</option>
         <option value="0.70">Mild steel</option>
@@ -234,6 +244,7 @@ pre.val{font-size:10.5px;line-height:1.65;margin:0;white-space:pre-wrap;color:va
       <div class="hr"></div>
       <div class="row sub"><span>peak chamber pressure</span><b id="mPress">&mdash;</b></div>
       <div class="row sub"><span>penetration at 100 m</span><b id="mPen">&mdash;</b></div>
+      <div class="row sub"><span>goes transonic at</span><b id="mTransR">&mdash;</b></div>
       <div class="row sub"><span>case fill</span><b id="mFill">&mdash;</b></div>
       <div class="row sub"><span>sectional density</span><b id="mSDen">&mdash;</b></div>
       <div class="row sub"><span>form factor i</span><b id="mForm">&mdash;</b></div>
@@ -361,6 +372,39 @@ function cdStd(table, mach){
   return t[lo][1] + f * (t[hi][1] - t[lo][1]);
 }
 
+/* -- transonic upset -----------------------------------------------------
+   Going through the sound barrier is not a drag problem; the tables above
+   already handle that. It is a yaw problem. Between roughly M1.25 and M0.80
+   the centre of pressure lurches forward and the aerodynamic moments turn
+   erratic, and whatever yaw that induces no longer damps out, so the bullet
+   flies slightly sideways for the rest of its trip.
+
+   Deriving that from first principles needs the dynamic stability factor and
+   a Cma curve per bullet, neither of which exist here. What follows is an
+   explicit empirical overlay: a small lateral acceleration applied only while
+   the bullet is inside the band, fixed in direction for a given shot and
+   random between shots, scaled by how well the bullet is likely to take it.
+   Call it a model of the consequence rather than of the cause. */
+const TRANSONIC_HI = 1.25, TRANSONIC_LO = 0.80;
+const TRANSONIC_ACCEL = 2.6;        // m/s^2 at full upset, calibrated below
+function transonicUpset(ammo, sg){
+  const q = ammo.transonic != null ? ammo.transonic : 0.65;   // 1 sails through
+  return (1 - q) * Math.max(0.25, Math.min(1, 2.2 / Math.max(0.6, sg)));
+}
+/* For the firing table and the solution: a yawing bullet really does drag
+   harder, and that extra drop is systematic, so predictions should carry it.
+   What they must not carry is the lateral kick, which is random per shot. */
+function meanYaw(ammo, sg){
+  const up = transonicUpset(ammo, sg);
+  return up < 0.001 ? null : { mag: up, accel: 0, cy: 0, sy: 0 };
+}
+function makeYaw(ammo, sg){
+  const up = transonicUpset(ammo, sg);
+  if (up < 0.001) return null;
+  const a = Math.random() * Math.PI * 2;
+  return { mag: up, accel: TRANSONIC_ACCEL * up, cy: Math.cos(a), sy: Math.sin(a) };
+}
+
 /* -- atmosphere ---------------------------------------------------------- */
 function saturationPressure(tC){           // Buck equation, hPa
   return 6.1121 * Math.exp((18.678 - tC / 234.5) * (tC / (257.14 + tC)));
@@ -425,12 +469,16 @@ function coriolisAccel(v, cor){
           ae*ry[0] + an*ry[1] + au*ry[2],
           ae*uz[0] + an*uz[1] + au*uz[2]];
 }
-function accel(pos, vel, ammo, env){
+function accel(pos, vel, ammo, env, yaw){
   const vx = vel[0] - env.wind[0], vy = vel[1] - env.wind[1], vz = vel[2] - env.wind[2];
   const v = Math.hypot(vx, vy, vz);
   let ax = 0, ay = 0, az = -G0;
   if (v > 1e-6){
-    const cd = cdStd(DRAG[ammo.drag], v / env.sos);
+    const mach = v / env.sos;
+    const inBand = yaw && mach < TRANSONIC_HI && mach > TRANSONIC_LO;
+    let cd = cdStd(DRAG[ammo.drag], mach);
+    if (inBand) cd *= 1 + 0.35 * yaw.mag;     // a yawing bullet drags harder
+    if (inBand){ ay += yaw.accel * yaw.cy; az += yaw.accel * yaw.sy; }
     // a = (pi/8) rho v^2 Cd / (BC * 703.07)   -- BC in lb/in^2
     const k = (Math.PI / 8) * env.rho * v * cd / (ammo.bc * LB_IN2_TO_KG_M2);
     ax -= k * vx; ay -= k * vy; az -= k * vz;
@@ -446,7 +494,7 @@ function accel(pos, vel, ammo, env){
    elev / azim are the BORE angles; the muzzle sits sightHeight below the
    line of sight, which is the geometry that makes a zero a zero. */
 function trajectory(opts){
-  const { ammo, env, elev, azim, mv, sightHeight, maxRange, maxTime, dt } = opts;
+  const { ammo, env, elev, azim, mv, sightHeight, maxRange, maxTime, dt, yaw } = opts;
   const step = dt || 5e-4;
   const tmax = maxTime || 12;
   const limit = maxRange || 2200;
@@ -466,16 +514,16 @@ function trajectory(opts){
   let guard = 0;
   while (t < tmax && pos[0] < limit && guard++ < 400000){
     const p0 = pos, v0 = vel;
-    const a1 = accel(p0, v0, ammo, env);
+    const a1 = accel(p0, v0, ammo, env, yaw);
     const p2 = [p0[0]+v0[0]*step/2, p0[1]+v0[1]*step/2, p0[2]+v0[2]*step/2];
     const v2 = [v0[0]+a1[0]*step/2, v0[1]+a1[1]*step/2, v0[2]+a1[2]*step/2];
-    const a2 = accel(p2, v2, ammo, env);
+    const a2 = accel(p2, v2, ammo, env, yaw);
     const p3 = [p0[0]+v2[0]*step/2, p0[1]+v2[1]*step/2, p0[2]+v2[2]*step/2];
     const v3 = [v0[0]+a2[0]*step/2, v0[1]+a2[1]*step/2, v0[2]+a2[2]*step/2];
-    const a3 = accel(p3, v3, ammo, env);
+    const a3 = accel(p3, v3, ammo, env, yaw);
     const p4 = [p0[0]+v3[0]*step, p0[1]+v3[1]*step, p0[2]+v3[2]*step];
     const v4 = [v0[0]+a3[0]*step, v0[1]+a3[1]*step, v0[2]+a3[2]*step];
-    const a4 = accel(p4, v4, ammo, env);
+    const a4 = accel(p4, v4, ammo, env, yaw);
 
     pos = [p0[0] + step/6*(v0[0]+2*v2[0]+2*v3[0]+v4[0]),
            p0[1] + step/6*(v0[1]+2*v2[1]+2*v3[1]+v4[1]),
@@ -513,10 +561,10 @@ function trajectory(opts){
 /* Bore elevation that puts the strike on the line of sight at range R.
    Secant iteration; the miss distance is smooth and monotone in the angle,
    so it converges in four or five passes. */
-function solveElevation(range, ammo, env, mv, sightHeight, sg){
+function solveElevation(range, ammo, env, mv, sightHeight, sg, yaw){
   const miss = (e) => {
     const tr = trajectory({ ammo, env, elev: e, azim: 0, mv, sightHeight,
-                            maxRange: range + 5, dt: 1e-3, sg });
+                            maxRange: range + 5, dt: 1e-3, sg, yaw });
     const c = tr.at(range);
     return c ? c.z : 1e6;
   };
@@ -537,44 +585,44 @@ function solveElevation(range, ammo, env, mv, sightHeight, sg){
    ========================================================================== */
 const AMMO_LIB = [
   { id:"sS",  cal:"792x57", name:"s.S. Patrone",        mass:0.01280, mv:760, drag:"G7", bc:0.280,
-    dia:0.00820, len:0.0353, sd:8,  tempSens:0.80, pen:0.25,
+    dia:0.00820, len:0.0353, sd:8,  tempSens:0.80, pen:0.25, transonic:0.72,
     note:"schweres Spitzgeschoss, 1934 issue. What the Lange Visier is graduated for." },
   { id:"S",   cal:"792x57", name:"S-Patrone (1905)",    mass:0.00990, mv:880, drag:"G7", bc:0.200,
-    dia:0.00820, len:0.0283, sd:9,  tempSens:1.00, pen:0.25,
+    dia:0.00820, len:0.0283, sd:9,  tempSens:1.00, pen:0.25, transonic:0.55,
     note:"Light spitzer. Flat early, sheds velocity fast, shoots high on a 98k leaf." },
   { id:"SmE", cal:"792x57", name:"S.m.E. (steel core)", mass:0.01155, mv:785, drag:"G7", bc:0.255,
-    dia:0.00820, len:0.0350, sd:9,  tempSens:0.90, pen:0.70,
+    dia:0.00820, len:0.0350, sd:9,  tempSens:0.90, pen:0.70, transonic:0.72,
     note:"Wartime iron-core economy load." },
   { id:"SmK", cal:"792x57", name:"S.m.K. (AP)",         mass:0.01180, mv:785, drag:"G7", bc:0.250,
-    dia:0.00820, len:0.0355, sd:9,  tempSens:0.90, pen:1.00,
+    dia:0.00820, len:0.0355, sd:9,  tempSens:0.90, pen:1.00, transonic:0.72,
     note:"Hardened steel core, armour piercing." },
   { id:"SmKH",cal:"792x57", name:"S.m.K.H. (Hartkern)",   mass:0.01160, mv:0, drag:"G7", bc:0.252,
-    dia:0.00820, len:0.0352, sd:9,  tempSens:0.90, pen:1.35,
+    dia:0.00820, len:0.0352, sd:9,  tempSens:0.90, pen:1.35, transonic:0.72,
     powder:"ns", charge:0.00283,
     note:"Spitzgeschoss mit Hartkern: tungsten carbide core, the best armour-piercing "
        + "round the cartridge had. Tungsten shortages pulled it out of small-arms issue from 1942." },
   { id:"mod", cal:"792x57", name:"196 gr soft point",   mass:0.01270, mv:730, drag:"G1", bc:0.400,
-    dia:0.00823, len:0.0320, sd:6,  tempSens:0.70, pen:0.18,
+    dia:0.00823, len:0.0320, sd:6,  tempSens:0.70, pen:0.18, transonic:0.40,
     note:"Modern commercial. Flat base, so G1 is the right family." },
 
   { id:"m855", cal:"556x45", name:"M855 5,56 NATO",      mass:0.00400, drag:"G7", bc:0.151,
-    dia:0.00570, len:0.0230, sd:7, tempSens:0.90, pen:0.45,
+    dia:0.00570, len:0.0230, sd:7, tempSens:0.90, pen:0.45, transonic:0.55,
     powder:"ns", charge:0.00178,
     note:"NATO ball with a mild steel penetrator tip. 880 m/s from a 368 mm barrel." },
   { id:"mk262",cal:"556x45", name:"Mk262 77 gr OTM",     mass:0.00499, drag:"G7", bc:0.191,
-    dia:0.00570, len:0.0254, sd:6, tempSens:0.90, pen:0.22,
+    dia:0.00570, len:0.0254, sd:6, tempSens:0.90, pen:0.22, transonic:0.90,
     powder:"ns", charge:0.00172,
     note:"Heavy open-tip match. The round that makes a short barrel worth shooting far." },
   { id:"9fmj", cal:"9x19",   name:"9 mm 115 gr FMJ",     mass:0.00745, drag:"G1", bc:0.125,
-    dia:0.00901, len:0.0155, sd:5, tempSens:0.50, pen:0.20,
+    dia:0.00901, len:0.0155, sd:5, tempSens:0.50, pen:0.20, transonic:0.55,
     powder:"ns", charge:0.00040,
     note:"Service ball. Barely supersonic at the muzzle and subsonic well inside 50 m." },
   { id:"9sub", cal:"9x19",   name:"9 mm 147 gr subsonic",mass:0.00953, drag:"G1", bc:0.191,
-    dia:0.00901, len:0.0185, sd:4, tempSens:0.50, pen:0.18,
+    dia:0.00901, len:0.0185, sd:4, tempSens:0.50, pen:0.18, transonic:0.55,
     powder:"ns", charge:0.00026,
     note:"Heavy and slow on purpose: never breaks the sound barrier, so there is no crack." },
   { id:"b32",  cal:"145x114",name:"B-32 API",            mass:0.06440, drag:"G7", bc:0.320,
-    dia:0.01488, len:0.0510, sd:8, tempSens:1.20, pen:1.00,
+    dia:0.01488, len:0.0510, sd:8, tempSens:1.20, pen:1.00, transonic:0.72,
     powder:"ns", charge:0.03000,
     note:"Armour-piercing incendiary, hardened steel core. 64 grams at 980 m/s." }
 ];
@@ -1174,7 +1222,8 @@ function fire(){
   const azim = a.az + sightAng * Math.sin(phi) + windageAng * Math.cos(phi) + dAz;
 
   const tr = trajectory({ ammo, env:S.env, elev, azim, mv,
-                          sightHeight:sightHeight(), maxRange:2050, dt:5e-4, sg });
+                          sightHeight:sightHeight(), maxRange:2050, dt:5e-4, sg,
+                          yaw: makeYaw(ammo, sg) });
 
   r.chamber.state = "spent";
   r.cocked = false;
@@ -2416,7 +2465,7 @@ function updateOfficer(){
   const sightAng = sightAngle();
   const tr = trajectory({ ammo:S.ammo, env:S.env, elev:sightAng, azim:0, mv,
                           sightHeight:sightHeight(), maxRange:aimed.range + 5,
-                          dt:1e-3, sg:S.sg });
+                          dt:1e-3, sg:S.sg, yaw:meanYaw(S.ammo, S.sg) });
   const c = tr.at(aimed.range);
   $("ofSol").textContent = aimed.range + " m · " + aimed.label;
   if (!c){ ["ofDrop","ofWind","ofSpin","ofTof","ofLead"].forEach(i => $(i).textContent = "short"); return; }
@@ -2442,7 +2491,7 @@ function updateOfficer(){
    lengthens the flight, so the honest answer needs the zeroing solver. At
    800 m the shortcut is about 0.3 mil out, which is a 23 cm miss. */
 function dialFor(R, currentAngle, mv){
-  const need = solveElevation(R, S.ammo, S.env, mv, sightHeight(), S.sg);
+  const need = solveElevation(R, S.ammo, S.env, mv, sightHeight(), S.sg, meanYaw(S.ammo, S.sg));
   return ((need - currentAngle) * 1000).toFixed(1);
 }
 
@@ -2451,7 +2500,8 @@ function renderCard(){
   const mv = effectiveMV(false);
   const sightAng = sightAngle();
   const tr = trajectory({ ammo:S.ammo, env:S.env, elev:sightAng, azim:0, mv,
-                          sightHeight:sightHeight(), maxRange:2050, dt:1e-3, sg:S.sg });
+                          sightHeight:sightHeight(), maxRange:2050, dt:1e-3, sg:S.sg,
+                          yaw:meanYaw(S.ammo, S.sg) });
   const dry = trajectory({ ammo:S.ammo,
       env: makeEnv({ tempC:S.cfg.tempC, pressHpa:S.cfg.pressHpa, humidity:S.cfg.humidity,
                      windSpeed:0, windClock:12, latitude:S.cfg.latitude, azimuth:S.cfg.azimuth,
@@ -2468,7 +2518,9 @@ function renderCard(){
       + "<td>" + ((c.y - c.sd - cd.y)*100).toFixed(0) + "</td>"
       + "<td>" + (c.sd*100).toFixed(0) + "</td>"
       + "<td>" + c.speed.toFixed(0) + "</td>"
-      + "<td>" + (c.speed/S.env.sos).toFixed(2) + "</td>"
+      + "<td class='" + (c.speed/S.env.sos < TRANSONIC_LO ? "sub"
+          : c.speed/S.env.sos < TRANSONIC_HI ? "trans" : "") + "'>"
+      + (c.speed/S.env.sos).toFixed(2) + "</td>"
       + "<td>" + e.toFixed(0) + "</td>"
       + "<td>" + c.t.toFixed(2) + "</td></tr>";
   }
@@ -2739,6 +2791,10 @@ function fillBench(a){
   $("mDia").value = (a.dia*1000).toFixed(2); $("mLen").value = (a.len*1000).toFixed(1);
   $("mSD").value = a.sd; $("mTemp").value = a.tempSens;
   $("mCore").value = (a.pen != null ? a.pen : 0.25).toFixed(2);
+  const tq = a.transonic != null ? a.transonic : 0.65;
+  const opts = [...$("mTrans").options].map(o => parseFloat(o.value));
+  $("mTrans").value = opts.reduce((b, v) =>
+    Math.abs(v - tq) < Math.abs(b - tq) ? v : b, opts[0]).toFixed(2);
   updateBenchDerived();
 }
 
@@ -2781,6 +2837,23 @@ function updateBenchDerived(){
     if (c) v100 = c.speed;
   }
   $("mPen").textContent = penetrationMM(probe, v100).toFixed(0) + " mm of steel at 100 m";
+  // where this load drops into the band, which is where it stops being predictable
+  const tEl = $("mTransR");
+  if (bc > 0 && mv > TRANSONIC_HI * (S.env || REF_ENV).sos){
+    const sos = (S.env || REF_ENV).sos;
+    const path = trajectory({ ammo:Object.assign({}, probe, { bc, drag:$("mDrag").value }),
+                              env:S.env || REF_ENV, elev:0.012, azim:0, mv,
+                              sightHeight:0.03, maxRange:2050, dt:1e-3, sg:0 }).path;
+    let at = null;
+    for (const pt of path){
+      if (Math.hypot(pt.v[0], pt.v[1], pt.v[2]) / sos <= TRANSONIC_HI){ at = pt.p[0]; break; }
+    }
+    tEl.textContent = at != null && at < 2040 ? at.toFixed(0) + " m" : "beyond 2000 m";
+    tEl.className = "";
+  } else {
+    tEl.textContent = mv > 0 ? "subsonic from the muzzle" : "—";
+    tEl.className = "hot";
+  }
   $("mE").textContent = (0.5*mass*mv*mv).toFixed(0) + " J";
   $("mRec").textContent = ((mass*mv + charge*1550)/4.0).toFixed(2) + " m/s";
 }
@@ -2795,10 +2868,11 @@ function renderChips(){
     msg(S.bench.note);
   }));
 }
-["mMass","mCharge","mPowder","mDia","mBC","mDrag","mCore"].forEach(id =>
+["mMass","mCharge","mPowder","mDia","mBC","mDrag","mCore","mTrans"].forEach(id =>
   $(id).addEventListener("input", updateBenchDerived));
 $("mPowder").addEventListener("change", updateBenchDerived);
 $("mCore").addEventListener("change", updateBenchDerived);
+$("mTrans").addEventListener("change", updateBenchDerived);
 $("mApply").addEventListener("click", () => {
   const a = {
     id:"custom", name:$("mName").value || "custom load",
@@ -2807,7 +2881,8 @@ $("mApply").addEventListener("click", () => {
     drag: $("mDrag").value, bc: parseFloat($("mBC").value),
     dia: parseFloat($("mDia").value)/1000, len: parseFloat($("mLen").value)/1000,
     sd: parseFloat($("mSD").value), tempSens: parseFloat($("mTemp").value),
-    pen: parseFloat($("mCore").value), note:"bench load"
+    pen: parseFloat($("mCore").value), transonic: parseFloat($("mTrans").value),
+    note:"bench load"
   };
   a.cal = weapon().cal;
   a.mv = mvFromCharge(a.charge, a.mass, a.powder, a.cal, weapon().barrel);
@@ -2913,6 +2988,19 @@ function runChecks(){
   out.push("G7 Cd across the transonic region");
   out.push("   " + mach.map(m => "M" + m.toFixed(2) + " " + cdStd(DRAG.G7, m).toFixed(4)).join("   "));
   ok(cdStd(DRAG.G7, 1.1) > 2.2 * cdStd(DRAG.G7, 0.6), "the transonic rise is there");
+
+  // the transonic overlay must not touch a bullet that never gets there
+  const yawRef = makeYaw(ref, sgRef);
+  const clean = trajectory({ ammo:ref, env:REF_ENV, elev:e300, azim:0, mv:ref.mv,
+                             sightHeight:REF_SH, maxRange:520, dt:5e-4, sg:sgRef }).at(500);
+  const yawed = trajectory({ ammo:ref, env:REF_ENV, elev:e300, azim:0, mv:ref.mv,
+                             sightHeight:REF_SH, maxRange:520, dt:5e-4, sg:sgRef,
+                             yaw:yawRef }).at(500);
+  const supersonicShift = Math.hypot(clean.y - yawed.y, clean.z - yawed.z) * 1000;
+  out.push("");
+  out.push("transonic overlay, effect at 500 m where the bullet is still M"
+           + (clean.speed/REF_ENV.sos).toFixed(2) + "   " + supersonicShift.toFixed(4) + " mm");
+  ok(supersonicShift < 0.5, "supersonic flight is untouched by it");
 
   // moving target lead must equal speed x time of flight
   const mover = TARGETS.find(t => t.range === 600 && t.mover);
