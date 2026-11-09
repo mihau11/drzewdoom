@@ -139,3 +139,64 @@
   #shopcols .col .keys{ text-align:center; }
   #overlay .link{ cursor:pointer; color:#ffe07a; text-decoration:underline;
                   font-size:calc(6px*var(--s)); margin-top:calc(3px*var(--s)); }
+
+  /* touch-action: manipulation usuwa 300ms opóźnienie kliknięcia na iOS/Android */
+  #overlay, .modebox, .link, .optbtn{ touch-action:manipulation; }
+  /* Zapobiega przewijaniu i zoomowi podczas gry */
+  #app{ touch-action:none; }
+
+  /* === Kontrola dotykowa === */
+  #touch-ui{ display:none; position:absolute; inset:0; pointer-events:none; z-index:20; }
+
+  #joy-base{
+    display:none; position:absolute;
+    width:100px; height:100px;
+    margin-left:-50px; margin-top:-50px;
+    border-radius:50%;
+    background:rgba(100,160,80,.18);
+    border:2px solid rgba(140,220,100,.35);
+    pointer-events:none;
+  }
+  #joy-knob{
+    position:absolute; width:48px; height:48px;
+    left:50%; top:50%; margin-left:-24px; margin-top:-24px;
+    border-radius:50%;
+    background:rgba(140,220,100,.45);
+    border:2px solid rgba(140,220,100,.75);
+  }
+
+  .tbtn{
+    position:absolute; pointer-events:auto;
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:"Consolas","Courier New",monospace; font-size:14px;
+    color:rgba(220,240,200,.9);
+    background:rgba(8,16,10,.55);
+    border:2px solid rgba(80,140,60,.55);
+    user-select:none; -webkit-user-select:none;
+    touch-action:none;
+    text-shadow:none;
+    letter-spacing:0;
+  }
+  #tbtn-fire{
+    width:68px; height:68px; right:18px; bottom:18px;
+    font-size:26px;
+    background:rgba(10,22,12,.65);
+    border-color:rgba(140,210,100,.65);
+  }
+  #tbtn-sprint{ width:46px; height:46px; right:18px; bottom:94px; font-size:11px; }
+  #tbtn-reload{ width:46px; height:46px; right:72px; bottom:18px; font-size:13px; font-weight:bold; }
+  #tbtn-pause{  width:34px; height:34px; right:8px;  top:8px;     font-size:14px; }
+
+  /* === Responsywne nakładki (urządzenia dotykowe) === */
+  @media (pointer:coarse){
+    /* nakładki (tytuł/sklep/opcje) zajmują cały ekran, nie tylko obszar gry */
+    #overlay{ position:fixed; }
+    #titlecols{ flex-wrap:wrap; justify-content:center; }
+    #lore{ flex:1 1 100%; max-width:100%; }
+    #titlekeys{ display:none; }
+    #shopcols{ flex-direction:column; align-items:stretch; }
+    .fitbox{ max-height:85vh; overflow-y:auto; overflow-x:hidden; }
+    /* Większe cele kliknięcia dla elementów sklepu i opcji */
+    .optrow{ padding:calc(5px*var(--s)) calc(4px*var(--s)); }
+    .modebox{ width:calc(150px*var(--s)); padding:calc(6px*var(--s)) calc(6px*var(--s)); }
+  }

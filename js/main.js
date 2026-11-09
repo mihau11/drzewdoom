@@ -24,7 +24,7 @@ requestAnimationFrame(frame);
 function fit(){
   const app=document.getElementById('app');
   const vw=innerWidth, vh=innerHeight;
-  const s = Math.max(1, Math.min(vw/W, vh/H));
+  const s = Math.max(0.5, Math.min(vw/W, vh/H));
   app.style.width = Math.floor(W*s)+'px';
   app.style.height= Math.floor(H*s)+'px';
   document.documentElement.style.setProperty('--s', (s*0.95).toFixed(3));

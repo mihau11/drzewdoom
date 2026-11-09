@@ -206,7 +206,7 @@ function pause(){
   overlay.innerHTML = `<h1 style="font-size:calc(16px*var(--s))">PAUZA</h1>
      <div class="keys">Poziom <b>${level}</b> — ${biome.name} · fala <b>${wave}</b> · ścięte <b>${kills}</b> · wynik <b>${score}</b></div>
      <div class="keys" style="color:#e0c14a">WIÓRY: <b>${save.chips}</b></div>
-     <div class="go">KLIKNIJ, ABY WRÓCIĆ</div>
+     <div class="go">DOTKNIJ / KLIKNIJ, ABY WRÓCIĆ</div>
      <div class="link" id="pshop">SKLEP</div>
      <div class="link" id="popt">OPCJE</div>
      <div class="link" id="pnew">NOWA GRA</div>`;
@@ -243,7 +243,7 @@ function endGame(){
         ${fresh ? '<br><span style="color:#ffe07a">NOWY REKORD!</span>'
                 : `<br><span style="color:#7fa06d">rekord: ${best.score} pkt (fala ${best.wave})</span>`}
         ${hadProgress ? '<br><span style="color:#ff6a4a">PERMAŚMIERĆ: wióry i ulepszenia przepadły</span>' : ''}</div>
-      <div class="go">KLIKNIJ LUB WCIŚNIJ R, ABY SPRÓBOWAĆ JESZCZE RAZ (${FOREST_MODES[lastMode].name})</div>
+      <div class="go">DOTKNIJ / WCIŚNIJ R, ABY SPRÓBOWAĆ JESZCZE RAZ (${FOREST_MODES[lastMode].name})</div>
       <div class="link" id="egmode">ZMIEŃ TRYB</div>`;
     overlay.onclick = ()=>newGame();
     document.getElementById('egmode').onclick = ev=>{ ev.stopPropagation(); showTitle(); };
