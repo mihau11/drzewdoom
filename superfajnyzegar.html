@@ -222,8 +222,8 @@ body{
   <div class="row"><label>Increment (seconds)</label><input type="number" id="iInc" min="0" max="60" step="1"></div>
   <div class="row"><label>Events enabled</label><input type="checkbox" id="iEv"></div>
   <div class="row"><label>First event after (moves)</label><input type="number" id="iOpen" min="0" max="60" step="1"></div>
-  <div class="row"><label>Min moves between</label><input type="number" id="iMin" min="1" max="20" step="1"></div>
-  <div class="row"><label>Max moves between</label><input type="number" id="iMax" min="1" max="30" step="1"></div>
+  <div class="row"><label>Min moves between</label><input type="number" id="iMin" min="1" max="40" step="1"></div>
+  <div class="row"><label>Max moves between</label><input type="number" id="iMax" min="1" max="60" step="1"></div>
   <button class="btn warn" id="btnApply">Apply &amp; new game</button>
 </div>
 
@@ -308,11 +308,14 @@ var FILES = ["a","b","c","d","e","f","g","h"];
 var PIECE_WORDS = ["knight","bishop","rook","pawn"];
 
 var CFG_KEY = "gambitclock.cfg";
-var cfg = {base:5, inc:0, minGap:2, maxGap:5, opening:10, events:true};
+/* v is the shape of this config, not a setting. Bumping it retires a
+   stored config from an older build, so new defaults actually arrive
+   instead of being overwritten by whatever was saved last time.      */
+var cfg = {v:2, base:5, inc:0, minGap:8, maxGap:16, opening:10, events:true};
 try { var saved = JSON.parse(localStorage.getItem(CFG_KEY) || "{}");
-      for (var k in saved) if (k in cfg) cfg[k] = saved[k]; } catch(e){}
+      if (saved.v === cfg.v) for (var k in saved) if (k in cfg) cfg[k] = saved[k]; } catch(e){}
 
-var S, raf = null, last = 0, resetArmed = false, resetTimer = null;
+var S, raf = null, beat = null, resetArmed = false, resetTimer = null;
 
 function rnd(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
 function other(s){ return s === "w" ? "b" : "w"; }
@@ -352,7 +355,7 @@ function newGame(){
   S = {
     w:{ms:ms, ev:0, gone:blank()},
     b:{ms:ms, ev:0, gone:blank()},
-    turn:null, running:false, flagged:null,
+    turn:null, running:false, since:null, flagged:null,
     moveCount:0, pending:null, log:[],
     nextOwner:null, nextAt:0
   };
@@ -409,39 +412,72 @@ function fmt(ms){
   return m + ":" + ss;
 }
 
+/* Time is read from the clock of the world, never counted up frame by
+   frame: a backgrounded tab gets no animation frames, and a clock that
+   quietly stops while you look away is not a clock. S[side].ms is the
+   time as it stood at S.since; what has run since is worked out on
+   demand, so the reading is right however long the frames were absent. */
+function left(side){
+  if (S.running && S.since !== null && S.turn === side)
+    return Math.max(0, S[side].ms - (performance.now() - S.since));
+  return S[side].ms;
+}
+/* settle the elapsed time into the store before anything touches it */
+function fold(){
+  if (S.running && S.since !== null){
+    var t = S.turn;
+    S[t].ms = Math.max(0, S[t].ms - (performance.now() - S.since));
+    S.since = performance.now();
+  }
+}
+function stopTimers(){
+  if (raf){ cancelAnimationFrame(raf); raf = null; }
+  if (beat){ clearInterval(beat); beat = null; }
+}
+
 function draw(){
   ["w","b"].forEach(function(side){
-    var P = $(side === "w" ? "pW" : "pB");
-    $(side === "w" ? "tW" : "tB").textContent = fmt(S[side].ms);
+    var P = $(side === "w" ? "pW" : "pB"), ms = left(side);
+    $(side === "w" ? "tW" : "tB").textContent = fmt(ms);
     $(side === "w" ? "evW" : "evB").textContent = S[side].ev;
     P.classList.toggle("active", S.turn === side && !S.flagged);
     P.classList.toggle("idle",  S.turn !== side && S.turn !== null && !S.flagged);
-    P.classList.toggle("low",   S[side].ms < 20000);
+    P.classList.toggle("low",   ms < 20000);
     P.classList.toggle("flag",  S.flagged === side);
   });
 }
 
-function tick(now){
-  if (!S.running){ raf = null; return; }
-  var dt = now - last; last = now;
+function tick(){
+  if (!S.running){ stopTimers(); return; }
   var t = S.turn;
-  S[t].ms -= dt;
-  if (S[t].ms <= 0){
-    S[t].ms = 0; S.running = false; S.flagged = t;
+  if (left(t) <= 0){
+    S[t].ms = 0; S.running = false; S.since = null; stopTimers();
+    S.flagged = t;
     $("btnPause").textContent = "Start";
     $("btnPause").classList.remove("on");
+    draw();
+    return;
   }
   draw();
-  raf = S.running ? requestAnimationFrame(tick) : null;
+  raf = requestAnimationFrame(tick);
 }
 
 function run(on){
-  S.running = !!on && !S.flagged && !S.pending && S.turn !== null;
+  fold();
+  var want = !!on && !S.flagged && !S.pending && S.turn !== null;
+  if (want && !S.running) S.since = performance.now();
+  if (!want) S.since = null;
+  S.running = want;
   $("btnPause").textContent = S.running ? "Pause" : "Start";
   $("btnPause").classList.toggle("on", S.running);
-  if (S.running && !raf){ last = performance.now(); raf = requestAnimationFrame(tick); }
+  stopTimers();
+  if (S.running){
+    raf = requestAnimationFrame(tick);   /* smooth while the page is watched */
+    beat = setInterval(tick, 250);       /* and still true while it is not */
+  }
   draw();
 }
+document.addEventListener("visibilitychange", function(){ if (S.running) tick(); });
 
 /* ---------- the press ---------- */
 function press(side){
@@ -452,6 +488,8 @@ function press(side){
     return;
   }
   if (S.turn !== side) return;     /* not your clock to press */
+  fold();                          /* settle what this move cost you */
+  S.running = false; S.since = null; stopTimers();
   S[side].ms += cfg.inc*1000;
   S.moveCount++;
   S.turn = other(side);
@@ -569,7 +607,7 @@ $("btnReset").addEventListener("click", function(){
   if (resetArmed){
     clearTimeout(resetTimer); resetArmed = false;
     $("btnReset").textContent = "Reset"; $("btnReset").classList.remove("warn");
-    if (raf){ cancelAnimationFrame(raf); raf = null; }
+    stopTimers();
     newGame();
     return;
   }
@@ -602,13 +640,13 @@ $("btnApply").addEventListener("click", function(){
   }
   cfg.base = n("iBase",1,180,5);
   cfg.inc  = n("iInc",0,60,0);
-  cfg.minGap = n("iMin",1,20,2);
-  cfg.maxGap = Math.max(cfg.minGap, n("iMax",1,30,5));
+  cfg.minGap = n("iMin",1,40,8);
+  cfg.maxGap = Math.max(cfg.minGap, n("iMax",1,60,16));
   cfg.opening = n("iOpen",0,60,10);
   cfg.events = $("iEv").checked;
   try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch(e){}
   closePops();
-  if (raf){ cancelAnimationFrame(raf); raf = null; }
+  stopTimers();
   newGame();
 });
 

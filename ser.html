@@ -128,11 +128,83 @@ h2{font-size:1rem;margin:16px 0 6px;font-weight:700}
 .mv:nth-child(odd){background:rgba(127,140,120,.12)}
 .mv .n{color:var(--muted)}
 .empty{color:var(--muted);font-style:italic;margin:6px 0 0}
+
+/* ---------- the glass, and the decrees ---------- */
+.clock{border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:14px 0}
+.clock[hidden]{display:none}
+.ck{
+  display:grid;grid-template-columns:1fr max-content max-content;align-items:baseline;
+  gap:10px;padding:8px 11px;background:var(--panel);
+  border-bottom:1px solid var(--line);transition:background .2s,color .2s;
+}
+.ck:last-child{border-bottom:0}
+.ck .who{font-size:.9rem;color:var(--muted)}
+.ck .t{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.ck .ev{font-size:.78rem;color:var(--muted);min-width:5.5em;text-align:right}
+.ck.on{background:rgba(212,170,40,.16)}
+.ck.on .who{color:var(--ink)}
+.ck.on .t{color:var(--accent)}
+.ck.low .t{color:var(--accent)}
+.ck.out .t{color:var(--accent);text-decoration:line-through}
+
+/* a decree takes the whole window, not merely the board: it wants the room */
+.decree{position:fixed;inset:0;border-radius:0;z-index:40;padding:16px}
+.decree .box{max-width:30rem;max-height:100%;overflow:auto}
+@media (max-height:620px),(max-width:460px){
+  .decree .what{font-size:1.05rem}
+  .decree .box{padding:12px 14px}
+}
+.decree .who{margin:0 0 8px;font-size:.82rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-style:normal}
+.decree .what{margin:0 0 10px;font-size:1.22rem;line-height:1.35;font-style:italic}
+.decree .delta{
+  margin:0 0 12px;font-weight:700;font-variant-numeric:tabular-nums;
+  color:var(--accent);min-height:1.2em;font-style:normal;
+}
+.decree .delta[hidden]{display:none}
+.decree .act[hidden]{display:none}
+.decree .what{min-height:2.7em}
+.decree .what.in{animation:settle .45s ease-out both}
+@keyframes settle{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* the wheel of the board */
+.wheel{
+  --d:clamp(140px,42vw,196px);--r:calc(var(--d) * .33);
+  position:relative;width:var(--d);height:var(--d);margin:2px auto 14px;
+}
+.wheel[hidden]{display:none}
+.wheel .disc{
+  position:absolute;inset:0;border-radius:50%;transform:rotate(0deg);
+  box-shadow:0 0 0 6px var(--frame),0 0 0 8px var(--frame-edge),
+             0 10px 22px rgba(0,0,0,.45),inset 0 0 26px rgba(0,0,0,.35);
+}
+.wheel .lab{
+  position:absolute;left:50%;top:50%;
+  width:calc(var(--d) * .46);margin-left:calc(var(--d) * -.23);margin-top:-.5em;
+  text-align:center;font-size:clamp(.46rem,2.2vw,.6rem);letter-spacing:.08em;text-transform:uppercase;
+  font-family:"Palatino Linotype",Palatino,Georgia,serif;font-weight:700;
+  color:#f8f3e4;text-shadow:0 1px 2px rgba(0,0,0,.75);pointer-events:none;
+}
+.wheel .hub{
+  position:absolute;left:50%;top:50%;
+  width:calc(var(--d) * .2);height:calc(var(--d) * .2);
+  margin:calc(var(--d) * -.1) 0 0 calc(var(--d) * -.1);
+  border-radius:50%;background:var(--frame);
+  box-shadow:0 0 0 3px var(--frame-edge),inset 0 2px 5px rgba(255,255,255,.22);
+}
+.wheel .pointer{
+  position:absolute;left:50%;top:-11px;margin-left:-9px;width:0;height:0;z-index:3;
+  border-left:9px solid transparent;border-right:9px solid transparent;
+  border-top:17px solid var(--accent);
+  filter:drop-shadow(0 2px 2px rgba(0,0,0,.55));
+}
+@media (prefers-reduced-motion: reduce){
+  .decree .what.in{animation:none}
+}
 </style>
 </head>
 <body>
 <div class="page">
-  <h1><a href="superfajnyzegar.html">Chess against the Automaton</a></h1>
+  <h1>Chess against the Automaton</h1>
   <p class="sub" id="sub"></p>
   <div class="layout">
     <div class="boardwrap">
@@ -144,6 +216,19 @@ h2{font-size:1rem;margin:16px 0 6px;font-weight:700}
           <button class="act skip" id="promoCancel" type="button">Think again</button>
         </div>
       </div>
+      <div class="promo decree" id="decree" role="dialog" aria-label="A decree of the board">
+        <div class="box">
+          <p class="who" id="decreeWho"></p>
+          <div class="wheel" id="wheel">
+            <div class="pointer"></div>
+            <div class="disc" id="wheelDisc"></div>
+            <div class="hub"></div>
+          </div>
+          <p class="what" id="decreeText"></p>
+          <p class="delta" id="decreeDelta" hidden></p>
+          <button class="act main" id="decreeOk" type="button">So be it</button>
+        </div>
+      </div>
     </div>
     <aside class="panel">
       <p class="status" id="status" aria-live="polite"></p>
@@ -152,6 +237,22 @@ h2{font-size:1rem;margin:16px 0 6px;font-weight:700}
       <p class="caps" id="capsBot"></p>
       <p class="caplabel">Taken from thee</p>
       <p class="caps" id="capsYou"></p>
+      <div class="clock" id="clock">
+        <div class="ck" id="ckBot"><span class="who" id="ckBotWho">The Automaton</span><span class="t" id="ckBotT">5:00</span><span class="ev" id="ckBotE">no decrees</span></div>
+        <div class="ck" id="ckYou"><span class="who" id="ckYouWho">Thee</span><span class="t" id="ckYouT">5:00</span><span class="ev" id="ckYouE">no decrees</span></div>
+      </div>
+      <div class="controls">
+        <label for="tc">The glass</label>
+        <select id="tc">
+          <option value="off">No clock</option>
+          <option value="3+0">3 min</option>
+          <option value="5+0" selected>5 min</option>
+          <option value="5+3">5 min, 3s added</option>
+          <option value="10+5">10 min, 5s added</option>
+        </select>
+        <button class="act" id="chaosBtn" type="button" aria-pressed="true">Decrees: on</button>
+        <span class="hint">The glass starts with the first move. Once ten half-moves have passed, the board issues a decree every four to eight moves &mdash; strange and unequal, but each side receives the same number of them, turn and turn about.</span>
+      </div>
       <div class="controls">
         <label for="side">Thy colour</label>
         <select id="side"><option value="w">White</option><option value="b">Black</option></select>
@@ -178,12 +279,40 @@ h2{font-size:1rem;margin:16px 0 6px;font-weight:700}
 <script id="engine">
 /* ---------- Chess rules ---------- */
 var FILES='abcdefgh';
-var GL={K:'\u265A',Q:'\u265B',R:'\u265C',B:'\u265D',N:'\u265E',P:'\u265F'};
-var NAME={K:'king',Q:'queen',R:'rook',B:'bishop',N:'knight',P:'pawn'};
-var VAL={Q:5,R:4,B:3,N:2,P:1};
+var GL={K:'\u265A',Q:'\u265B',R:'\u265C',B:'\u265D',N:'\u265E',P:'\u265F',
+        A:'\u24B6',T:'\u24C9',M:'\u24C2',Z:'\u24CF',D:'\u24B9',L:'\u24C1'};
+var NAME={K:'king',Q:'queen',R:'rook',B:'bishop',N:'knight',P:'pawn',
+          A:'hierophant',T:'thief',M:'mimic',Z:'astrologer',D:'hydra',L:'herald'};
+var VAL={Q:5,R:4,B:3,N:2,P:1,A:5,T:1,M:3,Z:2,D:3,L:3};
 var KN=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
 var KG=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 var DG=[[-1,-1],[-1,1],[1,-1],[1,1]], OR=[[-1,0],[1,0],[0,-1],[0,1]];
+
+/* ---------- the stranger pieces ----------
+   A hierophant  bishop and knight in one
+   T thief       steps as a king, and becomes whatever it takes
+   M mimic       wears the shape of the last piece its enemy moved. That
+                 shape is the THIRD letter of the man upon the board
+                 ('wMN' is a white mimic shaped as a knight), so it lives
+                 in the position itself, and workers, repetition and
+                 take-back carry it without a word of extra bookkeeping.
+   Z astrologer  steps as a knight, and every step of it calls an augury
+   D hydra       rides as a bishop; cut it down and it becomes two pawns
+   L herald      rides as a rook, takes nothing, and leaves a pawn upon
+                 the square it quits when it advances in its own half
+   The herald takes nothing, and so it never attacks: it cannot give
+   check, and attacked() below must not look for it.                   */
+var LEAP={N:KN,Z:KN,A:KN,K:KG,T:KG};
+var RIDE={B:DG,D:DG,A:DG,R:OR,L:OR,Q:DG.concat(OR)};
+function wears(p){return p[1]==='M'?(p[2]||'K'):p[1];}
+function shapeOf(piece){            /* the shape a mimic would copy */
+  var t=piece[1]==='M'?(piece[2]||'K'):piece[1];
+  if(t==='P'||t==='M'||t==='T')return 'K';
+  if(t==='Z')return 'N';
+  if(t==='D')return 'B';
+  if(t==='L')return 'R';
+  return t;
+}
 function opp(c){return c==='w'?'b':'w'}
 function sqName(s){return FILES[s&7]+(8-(s>>3))}
 function inb(r,f){return r>=0&&r<8&&f>=0&&f<8}
@@ -196,6 +325,27 @@ function startState(){
   return {b:b,turn:'w',castle:{wK:1,wQ:1,bK:1,bQ:1},ep:-1,half:0,full:1};
 }
 
+/* Which men strike how. A mimic strikes with the shape it wears; a
+   herald strikes not at all. These four must agree exactly with the
+   move generator below, or a king will be taken without the game
+   ever noticing it was in check.                                     */
+function hitsN(p,by){                       /* as a knight */
+  if(!p||p[0]!==by)return false;var t=wears(p);
+  return t==='N'||t==='Z'||t==='A';
+}
+function hitsK(p,by){                       /* as a king */
+  if(!p||p[0]!==by)return false;var t=wears(p);
+  return t==='K'||t==='T';
+}
+function hitsDiag(p,by){
+  if(p[0]!==by)return false;var t=wears(p);
+  return t==='B'||t==='Q'||t==='A'||t==='D';
+}
+function hitsOrth(p,by){
+  if(p[0]!==by)return false;var t=wears(p);
+  return (t==='R'||t==='Q')&&p[1]!=='L';   /* the herald takes nothing */
+}
+
 function attacked(b,sq,by){
   var r=sq>>3,f=sq&7,i,dr,df,rr,ff,p;
   var pr=by==='w'?r+1:r-1;
@@ -204,15 +354,15 @@ function attacked(b,sq,by){
   }
   for(i=0;i<8;i++){
     rr=r+KN[i][0];ff=f+KN[i][1];
-    if(inb(rr,ff)&&b[rr*8+ff]===by+'N')return true;
+    if(inb(rr,ff)&&hitsN(b[rr*8+ff],by))return true;
     rr=r+KG[i][0];ff=f+KG[i][1];
-    if(inb(rr,ff)&&b[rr*8+ff]===by+'K')return true;
+    if(inb(rr,ff)&&hitsK(b[rr*8+ff],by))return true;
   }
   for(i=0;i<4;i++){
     dr=DG[i][0];df=DG[i][1];rr=r+dr;ff=f+df;
-    while(inb(rr,ff)){p=b[rr*8+ff]; if(p){ if(p[0]===by&&(p[1]==='B'||p[1]==='Q'))return true; break;} rr+=dr;ff+=df;}
+    while(inb(rr,ff)){p=b[rr*8+ff]; if(p){ if(hitsDiag(p,by))return true; break;} rr+=dr;ff+=df;}
     dr=OR[i][0];df=OR[i][1];rr=r+dr;ff=f+df;
-    while(inb(rr,ff)){p=b[rr*8+ff]; if(p){ if(p[0]===by&&(p[1]==='R'||p[1]==='Q'))return true; break;} rr+=dr;ff+=df;}
+    while(inb(rr,ff)){p=b[rr*8+ff]; if(p){ if(hitsOrth(p,by))return true; break;} rr+=dr;ff+=df;}
   }
   return false;
 }
@@ -222,7 +372,8 @@ function pseudo(st,color){
   var b=st.b,out=[],o=opp(color);
   for(var s=0;s<64;s++){
     var p=b[s]; if(!p||p[0]!==color)continue;
-    var t=p[1],r=s>>3,f=s&7,i,rr,ff,tp,dr,df;
+    var kind=p[1],t=wears(p),r=s>>3,f=s&7,i,rr,ff,tp,dr,df;
+    var noCap=(kind==='L');          /* the herald takes nothing */
     if(t==='P'){
       var d=color==='w'?-1:1,start=color==='w'?6:1,last=color==='w'?0:7,r1=r+d;
       if(r1<0||r1>7)continue;
@@ -240,33 +391,36 @@ function pseudo(st,color){
         if(tp&&tp[0]===o)add(to,tp);
         else if(!tp&&to===st.ep)add(to,o+'P',true);
       }
-    }else if(t==='N'||t==='K'){
-      var list=t==='N'?KN:KG;
-      for(i=0;i<8;i++){
-        rr=r+list[i][0];ff=f+list[i][1];
+      continue;
+    }
+    var leap=LEAP[t],ride=RIDE[t];     /* a hierophant hath both */
+    if(leap){
+      for(i=0;i<leap.length;i++){
+        rr=r+leap[i][0];ff=f+leap[i][1];
         if(!inb(rr,ff))continue;
         tp=b[rr*8+ff];
-        if(!tp||tp[0]===o)out.push({from:s,to:rr*8+ff,piece:p,cap:tp||null});
+        if(!tp)out.push({from:s,to:rr*8+ff,piece:p,cap:null});
+        else if(tp[0]===o&&!noCap)out.push({from:s,to:rr*8+ff,piece:p,cap:tp});
       }
-      if(t==='K'){
-        var home=color==='w'?60:4;
-        if(s===home&&!attacked(b,s,o)){
-          if(st.castle[color+'K']&&!b[home+1]&&!b[home+2]&&b[home+3]===color+'R'&&!attacked(b,home+1,o)&&!attacked(b,home+2,o))
-            out.push({from:s,to:home+2,piece:p,castle:'K',cap:null});
-          if(st.castle[color+'Q']&&!b[home-1]&&!b[home-2]&&!b[home-3]&&b[home-4]===color+'R'&&!attacked(b,home-1,o)&&!attacked(b,home-2,o))
-            out.push({from:s,to:home-2,piece:p,castle:'Q',cap:null});
-        }
-      }
-    }else{
-      var dirs=t==='B'?DG:t==='R'?OR:DG.concat(OR);
-      for(i=0;i<dirs.length;i++){
-        dr=dirs[i][0];df=dirs[i][1];rr=r+dr;ff=f+df;
+    }
+    if(ride){
+      for(i=0;i<ride.length;i++){
+        dr=ride[i][0];df=ride[i][1];rr=r+dr;ff=f+df;
         while(inb(rr,ff)){
           tp=b[rr*8+ff];
-          if(!tp){out.push({from:s,to:rr*8+ff,piece:p,cap:null});}
-          else{ if(tp[0]===o)out.push({from:s,to:rr*8+ff,piece:p,cap:tp}); break; }
+          if(!tp)out.push({from:s,to:rr*8+ff,piece:p,cap:null});
+          else{ if(tp[0]===o&&!noCap)out.push({from:s,to:rr*8+ff,piece:p,cap:tp}); break; }
           rr+=dr;ff+=df;
         }
+      }
+    }
+    if(kind==='K'){                     /* only a true king castles */
+      var home=color==='w'?60:4;
+      if(s===home&&!attacked(b,s,o)){
+        if(st.castle[color+'K']&&!b[home+1]&&!b[home+2]&&b[home+3]===color+'R'&&!attacked(b,home+1,o)&&!attacked(b,home+2,o))
+          out.push({from:s,to:home+2,piece:p,castle:'K',cap:null});
+        if(st.castle[color+'Q']&&!b[home-1]&&!b[home-2]&&!b[home-3]&&b[home-4]===color+'R'&&!attacked(b,home-1,o)&&!attacked(b,home-2,o))
+          out.push({from:s,to:home-2,piece:p,castle:'Q',cap:null});
       }
     }
   }
@@ -274,9 +428,37 @@ function pseudo(st,color){
 }
 
 function apply(st,m){
-  var b=st.b.slice(),color=m.piece[0];
+  var b=st.b.slice(),color=m.piece[0],i,q;
   b[m.to]=m.promo?color+m.promo:m.piece; b[m.from]=null;
   if(m.ep)b[(m.from>>3)*8+(m.to&7)]=null;
+
+  /* ---- the thief becomes whatever it hath taken ---- */
+  if(m.piece[1]==='T'&&m.cap){
+    b[m.to]=m.cap[1]==='M'?color+'M'+(m.cap[2]||'K'):color+m.cap[1];
+  }
+  /* ---- a hydra cut down rises as two pawns ---- */
+  if(m.cap&&m.cap[1]==='D'){
+    var hc=m.cap[0],made=0,hr=m.to>>3,hf=m.to&7;
+    for(i=0;i<8&&made<2;i++){
+      var rr=hr+KG[i][0],ff=hf+KG[i][1];
+      if(!inb(rr,ff))continue;
+      if(rr===0||rr===7)continue;              /* never upon the far ranks */
+      var sq2=rr*8+ff;
+      if(b[sq2])continue;
+      b[sq2]=hc+'P';made++;
+    }
+  }
+  /* ---- the herald leaves a pawn where it stood, advancing in its own half ---- */
+  if(m.piece[1]==='L'&&!m.cap){
+    var fr=m.from>>3,tr=m.to>>3;
+    var mine=color==='w'?(fr>=4&&fr<=6):(fr>=1&&fr<=3);
+    var on=color==='w'?(tr<fr):(tr>fr);
+    if(mine&&on&&!b[m.from])b[m.from]=color+'P';
+  }
+  /* ---- every mimic of the OTHER side takes the shape just seen ---- */
+  var sh=shapeOf(m.promo?color+m.promo:m.piece);
+  for(i=0;i<64;i++){q=b[i];if(q&&q[1]==='M'&&q[0]!==color)b[i]=q[0]+'M'+sh;}
+
   if(m.castle==='K'){b[m.to-1]=b[m.to+1];b[m.to+1]=null;}
   if(m.castle==='Q'){b[m.to+1]=b[m.to-2];b[m.to-2]=null;}
   var c={wK:st.castle.wK,wQ:st.castle.wQ,bK:st.castle.bK,bQ:st.castle.bQ};
@@ -335,7 +517,7 @@ function sanOf(st,m,L){
 }
 
 /* ---------- Alpha-beta search ---------- */
-var PV={P:100,N:320,B:330,R:500,Q:900,K:0};
+var PV={P:100,N:320,B:330,R:500,Q:900,K:0,A:620,T:150,M:300,Z:320,D:360,L:380};
 var MATE=100000,INF=1e9,TIMEOUT={};
 var nodes=0,deadline=0;
 
@@ -423,8 +605,10 @@ function pickAlphaBeta(st,maxDepth){
 /* ---------- Game state ---------- */
 var goofy=true;
 var GG={
-  w:{K:'🤴',Q:'👸',R:'🏰',B:'🧙',N:'🦄',P:'🐥'},
-  b:{K:'🦹',Q:'🧛',R:'🏯',B:'🧟',N:'🐲',P:'🐀'}
+  w:{K:'🤴',Q:'👸',R:'🏰',B:'🧙',N:'🦄',P:'🐥',
+     A:'😇',T:'🦝',M:'🎭',Z:'🔮',D:'🐙',L:'📯'},
+  b:{K:'🦹',Q:'🧛',R:'🏯',B:'🧟',N:'🐲',P:'🐀',
+     A:'👹',T:'🦨',M:'👺',Z:'🧿',D:'🦖',L:'🥁'}
 };
 var mode='kill';
 var abDepth=3;
@@ -760,7 +944,539 @@ document.getElementById('side').addEventListener('change',function(){
   document.getElementById('newBtn').textContent='New game as '+(this.value==='w'?'White':'Black');
 });
 
+/* =====================================================================
+   The glass, and the decrees of the board.
+
+   A clock for thee and for the Automaton, and a board that now and again
+   issues a decree. Decrees are applied to the true position - a knight
+   truly vanishes, the queen is truly borne away - and each is tested
+   against the rules before it stands: no king may be left in check that
+   hath no right to be, and the side to move must always have a move. A
+   decree that cannot lawfully be obeyed is discarded and another drawn,
+   so the board never asketh for the impossible.
+
+   Neither side is favoured in kind, but both receive the same NUMBER of
+   decrees: ownership alternates strictly, only the gap is drawn at
+   hazard, and nothing is decreed in the first ten half-moves.
+   ===================================================================== */
+var CK={
+  clock:true, decrees:true,
+  base:300000, inc:0,
+  opening:10, minGap:8, maxGap:16,   /* half-moves between decrees */
+  ms:{w:300000,b:300000}, ev:{w:0,b:0}, extra:{w:0,b:0},
+  started:false, running:false, raf:null, beat:null, since:null,
+  flag:null, pending:null, spin:0, nextOwner:'w', nextAt:0, augAt:-99
+};
+
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function pickOne(a){return a[Math.floor(Math.random()*a.length)];}
+
+/* ---------- reading the true board ---------- */
+function pieces(side,type){
+  var b=cur().b,o=[],i,p;
+  for(i=0;i<64;i++){p=b[i];if(p&&p[0]===side&&p[1]!=='K'&&(!type||p[1]===type))o.push(i);}
+  return o;
+}
+function nPieces(side,type){return pieces(side,type).length;}
+function emptyIn(lo,hi){var b=cur().b,o=[],i;for(i=lo;i<=hi;i++)if(!b[i])o.push(i);return o;}
+function homeHalf(side){return side==='w'?[32,63]:[0,31];}
+function rank2(side){return side==='w'?[48,55]:[8,15];}
+/* types this side hath already lost */
+function missing(side){
+  var init={P:8,N:2,B:2,R:2,Q:1},out=[],t,n;
+  for(t in init){n=init[t]-nPieces(side,t);while(n-- >0)out.push(t);}
+  return out;
+}
+function lastShapeFor(side){      /* what this side's enemy moved last */
+  for(var i=G.moves.length-1;i>=0;i--) if(G.moves[i].by!==side)return shapeOf(G.moves[i].m.piece);
+  return 'K';
+}
+function MY(side){return side===G.player?'Thy':'The Automaton’s';}
+function my(side){return side===G.player?'thy':'the Automaton’s';}
+function THEIR(side){return side===G.player?'The Automaton’s':'Thy';}
+
+/* ---------- keeping the position lawful ---------- */
+function snapshot(st){return {b:st.b.slice(),turn:st.turn,ep:st.ep,c:{wK:st.castle.wK,wQ:st.castle.wQ,bK:st.castle.bK,bQ:st.castle.bQ}};}
+function restore(st,s){st.b=s.b.slice();st.turn=s.turn;st.ep=s.ep;st.castle={wK:s.c.wK,wQ:s.c.wQ,bK:s.c.bK,bQ:s.c.bQ};}
+function fixCastle(st){
+  if(st.b[60]!=='wK'){st.castle.wK=0;st.castle.wQ=0;}
+  if(st.b[63]!=='wR')st.castle.wK=0;
+  if(st.b[56]!=='wR')st.castle.wQ=0;
+  if(st.b[4]!=='bK'){st.castle.bK=0;st.castle.bQ=0;}
+  if(st.b[7]!=='bR')st.castle.bK=0;
+  if(st.b[0]!=='bR')st.castle.bQ=0;
+}
+function lawful(st){
+  if(st.b.indexOf('wK')<0||st.b.indexOf('bK')<0)return false;
+  for(var i=0;i<64;i++){                         /* no pawn upon the far ranks */
+    if(st.b[i]&&st.b[i][1]==='P'&&((i>>3)===0||(i>>3)===7))return false;
+  }
+  if(inCheck(st.b,opp(st.turn)))return false;   /* he who doth not move may not stand in check */
+  return legal(st).length>0;                     /* and he who doth must have a move */
+}
+
+/* ---------- the decrees ----------
+   w    : weight.  time/oppTime: milliseconds.  swap: exchange the glasses.
+   act  : mutateth the true state and returneth its own wording, or null
+          if the position doth not allow it (another is then drawn).      */
+var DECREES=[
+  /* of the glass */
+  {w:7,kind:'glass',glass:1,time:+120000,text:function(s){return MY(s)+' glass is turned: two minutes more.';}},
+  {w:6,kind:'glass',glass:1,time:-60000, text:function(s){return 'A tax upon the hours. One minute is struck from '+my(s)+' glass.';}},
+  {w:4,kind:'glass',glass:1,time:+30000, text:function(s){return 'Thirty seconds, granted without reason.';}},
+  {w:3,kind:'glass',glass:1,time:-90000, text:function(s){return 'Ninety seconds run out upon the floor.';}},
+  {w:3,kind:'glass',glass:1,oppTime:+120000,text:function(s){return THEIR(s)+' glass is turned: two minutes more, to '+my(s)+' sorrow.';}},
+  {w:2,kind:'glass',glass:1,swap:true,   text:function(s){return 'The glasses are exchanged. What was thine is his.';}},
+
+  /* of thy men */
+  {w:6,kind:'blood',act:function(st,s){var a=pieces(s,'N');if(!a.length)return null;var q=pickOne(a);st.b[q]=null;
+      return MY(s)+' knight upon '+sqName(q)+' is claimed by the dark.';}},
+  {w:6,kind:'blood',act:function(st,s){var a=pieces(s,'P');if(!a.length)return null;var q=pickOne(a);st.b[q]=null;
+      return 'The pawn upon '+sqName(q)+' is taken from '+my(s)+' service.';}},
+  {w:3,kind:'blood',act:function(st,s){var a=pieces(s,'B');if(!a.length)return null;var q=pickOne(a);st.b[q]=null;
+      return MY(s)+' bishop upon '+sqName(q)+' walks away and doth not return.';}},
+  {w:2,kind:'blood',act:function(st,s){var a=pieces(s,'R');if(!a.length)return null;var q=pickOne(a);st.b[q]=null;
+      return 'The tower upon '+sqName(q)+' falls to rubble.';}},
+  {w:3,kind:'blood',act:function(st,s){var o=opp(s),a=pieces(o);if(!a.length)return null;var q=pickOne(a),n=NAME[st.b[q][1]];
+      st.b[q]=null;return THEIR(s)+' '+n+' upon '+sqName(q)+' crumbles to dust.';}},
+  {w:5,kind:'blood',act:function(st,s){
+      if(missing(s).indexOf('P')<0)return null;
+      var r=rank2(s),e=emptyIn(r[0],r[1]);if(!e.length)return null;
+      var q=pickOne(e);st.b[q]=s+'P';
+      return 'A pawn returns to '+my(s)+' ranks and stands upon '+sqName(q)+'.';}},
+  {w:2,kind:'blood',act:function(st,s){
+      var lost=missing(s).filter(function(t){return t!=='P';});if(!lost.length)return null;
+      var h=homeHalf(s),e=emptyIn(h[0],h[1]);if(!e.length)return null;
+      var t=pickOne(lost),q=pickOne(e);st.b[q]=s+t;
+      return 'A '+NAME[t]+', long dead, rises again upon '+sqName(q)+'.';}},
+  {w:3,kind:'blood',act:function(st,s){
+      var want=[];if(nPieces(s,'B')<2)want.push('B');if(nPieces(s,'N')<2)want.push('N');
+      if(!want.length)return null;
+      var a=pieces(s,'P');if(!a.length)return null;
+      var q=pickOne(a),t=pickOne(want);st.b[q]=s+t;
+      return 'The pawn upon '+sqName(q)+' is raised, here and now, to a '+NAME[t]+'.';}},
+
+  /* of place */
+  {w:5,kind:'place',act:function(st,s){
+      var a=pieces(s,'Q');if(!a.length)return null;
+      var e=emptyIn(0,63);if(!e.length)return null;
+      var q=a[0],d=pickOne(e);st.b[d]=st.b[q];st.b[q]=null;
+      return MY(s)+' queen is borne from '+sqName(q)+' to '+sqName(d)+', willing or no.';}},
+  {w:4,kind:'place',act:function(st,s){
+      var a=pieces(s);if(!a.length)return null;
+      var q=pickOne(a),e=emptyIn(0,63);if(!e.length)return null;
+      var d=pickOne(e),r=d>>3;
+      if(st.b[q][1]==='P'&&(r===0||r===7))return null;
+      var n=NAME[st.b[q][1]];st.b[d]=st.b[q];st.b[q]=null;
+      return 'The '+n+' upon '+sqName(q)+' is spirited away to '+sqName(d)+'.';}},
+  {w:3,kind:'place',act:function(st,s){
+      var a=pieces(s);if(a.length<2)return null;
+      var i=pickOne(a),j=pickOne(a.filter(function(x){return x!==i;}));
+      var pi=st.b[i],pj=st.b[j];
+      if((pi[1]==='P'&&((j>>3)===0||(j>>3)===7))||(pj[1]==='P'&&((i>>3)===0||(i>>3)===7)))return null;
+      st.b[i]=pj;st.b[j]=pi;
+      return 'The '+NAME[pi[1]]+' of '+sqName(i)+' and the '+NAME[pj[1]]+' of '+sqName(j)+' change places.';}},
+  {w:3,kind:'place',act:function(st,s){
+      var f,have=[],i,r;
+      for(f=0;f<8;f++)for(r=0;r<8;r++){var p=st.b[r*8+f];if(p&&p[1]==='P'&&have.indexOf(f)<0)have.push(f);}
+      if(!have.length)return null;
+      f=pickOne(have);var n=0;
+      for(r=0;r<8;r++){i=r*8+f;if(st.b[i]&&st.b[i][1]==='P'){st.b[i]=null;n++;}}
+      return 'A blight takes the '+FILES[f]+'-file. '+n+(n===1?' pawn is':' pawns are')+' swept from the board.';}},
+
+  /* of tempo */
+  {w:4,kind:'tempo',twice:true,text:function(s){return MY(s)+' hand moves twice over. Play, and play again.';}},
+  {w:3,kind:'tempo',act:function(st,s){st.turn=opp(s);return MY(s)+' move is forfeit. The turn passes.';}},
+
+  /* ---------------------------------------------------------------
+     Of wonders. Here the board forgets itself entirely. Each is still
+     tried against the rules, and any that cannot lawfully stand is
+     discarded for another - but nothing else is held back.
+     --------------------------------------------------------------- */
+  {w:5,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'P');if(!a.length)return null;
+      a.forEach(function(q){st.b[q]=s+'N';});
+      return 'Every pawn in '+my(s)+' service rears up and becomes a knight. All '+a.length+' of them.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=[],i;for(i=0;i<64;i++)if(st.b[i]&&st.b[i][1]==='B')a.push(i);
+      if(!a.length)return null;
+      a.forEach(function(q){st.b[q]=st.b[q][0]+'R';});
+      return 'Every bishop upon the board, of either colour, hardens into a tower.';}},
+  {w:4,kind:'wonder',act:function(st,s){
+      /* the board is rolled into a cylinder and turned one file about.
+         (A ninth file cannot be had: every square here is a number
+          from 0 to 63, and the file is the low three bits of it.)   */
+      var nb=new Array(64).fill(null),i,r,f;
+      for(i=0;i<64;i++){r=i>>3;f=i&7;nb[r*8+((f+1)&7)]=st.b[i];}
+      st.b=nb;
+      return 'The board is rolled into a cylinder and turned: every man steps one file to his right, and the h-file comes round to the a-file.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var nb=new Array(64).fill(null),i,r,f;
+      for(i=0;i<64;i++){r=i>>3;f=i&7;nb[r*8+(7-f)]=st.b[i];}
+      st.b=nb;st.castle={wK:0,wQ:0,bK:0,bQ:0};
+      return 'The board is held up to a glass. The files run backwards, a for h, and no man may castle again.';}},
+  {w:4,kind:'wonder',act:function(st,s){
+      var a=pieces(s);if(a.length<2)return null;
+      var men=a.map(function(q){return st.b[q];}),i,j,t;
+      for(i=men.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));t=men[i];men[i]=men[j];men[j]=t;}
+      for(i=0;i<a.length;i++){
+        if(men[i][1]==='P'&&((a[i]>>3)===0||(a[i]>>3)===7))return null;
+        st.b[a[i]]=men[i];
+      }
+      return MY(s)+' men are thrown in a sack and set down again, each upon another’s square.';}},
+  {w:4,kind:'wonder',act:function(st,s){
+      var h=homeHalf(s),e=emptyIn(h[0],h[1]),n=Math.min(3,e.length),i,q,put=[];
+      if(!n)return null;
+      for(i=0;i<n;i++){
+        q=pickOne(e);e=e.filter(function(x){return x!==q;});
+        if((q>>3)===0||(q>>3)===7){i--;continue;}
+        st.b[q]=s+'P';put.push(sqName(q));
+      }
+      if(!put.length)return null;
+      return 'A rain of pawns falls upon '+my(s)+' half of the board: '+put.join(', ')+'.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'Q');if(!a.length)return null;
+      var e=emptyIn(0,63);if(!e.length)return null;
+      var d=pickOne(e);st.b[d]=s+'Q';
+      return MY(s)+' queen steps out of a looking-glass. There are two of her now, and the second stands upon '+sqName(d)+'.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var r=rnd(2,5),i,n=0;                 /* never the back ranks */
+      for(i=r*8;i<r*8+8;i++)if(st.b[i]&&st.b[i][1]!=='K'){st.b[i]=null;n++;}
+      if(!n)return null;
+      return 'The '+(8-r)+((8-r)===1?'st':(8-r)===2?'nd':(8-r)===3?'rd':'th')+' rank opens underfoot. '+n+(n===1?' man falls':' men fall')+' through and are gone.';}},
+  {w:2,kind:'wonder',act:function(st,s){
+      var a=[],i;for(i=0;i<64;i++)if(st.b[i]&&st.b[i][1]==='P')a.push(i);
+      if(!a.length)return null;
+      a.forEach(function(q){st.b[q]=opp(st.b[q][0])+'P';});
+      return 'Every pawn upon the board changes its coat and serves the other side.';}},
+  /* ---------------------------------------------------------------
+     Of strangers. Each takes the place of a man of its own sort: the
+     hierophant and the hydra out of a bishop, the herald out of a
+     tower, the astrologer out of a knight, the thief and the mimic
+     out of a pawn.
+     --------------------------------------------------------------- */
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'B');if(!a.length)return null;
+      var q=pickOne(a);st.b[q]='' +s+'A';
+      return 'The bishop upon '+sqName(q)+' takes orders a second time. He is a HIEROPHANT, and goes as bishop and knight both.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'B');if(!a.length)return null;
+      var q=pickOne(a);st.b[q]=''+s+'D';
+      return 'The bishop upon '+sqName(q)+' grows heads. It is a HYDRA: it rides as a bishop, and whoever cuts it down leaves two pawns standing in its place.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'R');if(!a.length)return null;
+      var q=pickOne(a);st.b[q]=''+s+'L';
+      return 'The tower upon '+sqName(q)+' opens its gate and a HERALD rides out. It goes as a tower, takes nothing at all, and leaves a pawn behind it whenever it advances through its own half.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'N');if(!a.length)return null;
+      var q=pickOne(a);st.b[q]=''+s+'Z';
+      return 'The knight upon '+sqName(q)+' looks up and does not look down again. It is an ASTROLOGER: it steps as a knight, and every step it takes calls down an augury upon its own master.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'P');if(!a.length)return null;
+      var q=pickOne(a);st.b[q]=''+s+'T';
+      return 'The pawn upon '+sqName(q)+' learns a trade. It is a THIEF: it steps one square as a king, and becomes whatever it takes.';}},
+  {w:3,kind:'wonder',act:function(st,s){
+      var a=pieces(s,'P');if(!a.length)return null;
+      var q=pickOne(a);st.b[q]=''+s+'M'+lastShapeFor(s);
+      return 'The pawn upon '+sqName(q)+' has no face of its own. It is a MIMIC, and moves as whatever its enemy moved last.';}},
+
+  {w:3,kind:'wonder',act:function(st,s){
+      var n=pieces(s,'N'),r=pieces(s,'R');
+      if(!n.length||!r.length)return null;
+      var k=Math.min(n.length,r.length),i;
+      for(i=0;i<k;i++){st.b[n[i]]=s+'R';st.b[r[i]]=s+'N';}
+      return MY(s)+' knights and towers trade shapes where they stand.';}}
+];
+
+/* ---------- the wheel ----------
+   Five sorts of decree, each twice upon the wheel. It is no mummery:
+   the decree is drawn first, and the wheel is then spun to the segment
+   that names it, so what the pointer shows is what the board has done. */
+var KINDS=[
+  {k:'glass', label:'The Glass', a:'#6d4a2a', b:'#8a5f36'},
+  {k:'blood', label:'Blood',     a:'#7a2f2a', b:'#963a33'},
+  {k:'place', label:'Place',     a:'#3f5d44', b:'#4e7354'},
+  {k:'tempo', label:'Tempo',     a:'#4a4a62', b:'#5c5c79'},
+  {k:'wonder',label:'Wonder',    a:'#6a5520', b:'#886d2a'}
+];
+var SEGS=KINDS, SEG=360/SEGS.length, wheelAt=0;
+
+function buildWheel(){
+  var disc=document.getElementById('wheelDisc'),stops=[],h='',i;
+  for(i=0;i<SEGS.length;i++){
+    stops.push(SEGS[i].a+' '+(i*SEG)+'deg '+(i*SEG+SEG/2)+'deg');
+    stops.push(SEGS[i].b+' '+(i*SEG+SEG/2)+'deg '+((i+1)*SEG)+'deg');
+  }
+  disc.style.background='conic-gradient(from -'+(SEG/2)+'deg,'+stops.join(',')+')';
+  for(i=0;i<SEGS.length;i++){
+    h+='<span class="lab" style="transform:rotate('+(i*SEG)+'deg) translateY(calc(var(--r) * -1))">'+SEGS[i].label+'</span>';
+  }
+  disc.innerHTML=h;
+}
+
+function spinTo(kind,done){
+  var disc=document.getElementById('wheelDisc'),idx=[],i;
+  for(i=0;i<SEGS.length;i++)if(SEGS[i].k===kind)idx.push(i);
+  var seg=idx.length?pickOne(idx):0;
+  var still=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var want=((-seg*SEG)%360+360)%360;              /* bring that segment under the pointer */
+  if(still){disc.style.transition='none';disc.style.transform='rotate('+want+'deg)';wheelAt=want;done();return;}
+  var from=((wheelAt%360)+360)%360;
+  disc.style.transition='none';
+  disc.style.transform='rotate('+from+'deg)';
+  void disc.offsetWidth;                           /* let the browser take that as the start */
+  wheelAt=from+(((want-from)%360)+360)%360+360*rnd(4,6);
+  disc.style.transition='transform 2.8s cubic-bezier(.14,.72,.16,1)';
+  disc.style.transform='rotate('+wheelAt+'deg)';
+  var fired=false,fin=function(){if(fired)return;fired=true;disc.removeEventListener('transitionend',fin);done();};
+  disc.addEventListener('transitionend',fin);
+  setTimeout(fin,3000);                            /* in case the frame never comes */
+}
+
+function ckWeighted(pool){
+  var tot=0,i;for(i=0;i<pool.length;i++)tot+=pool[i].w;
+  var r=Math.random()*tot;
+  for(i=0;i<pool.length;i++){r-=pool[i].w;if(r<=0)return pool[i];}
+  return pool[pool.length-1];
+}
+
+function ckFire(side,augury){
+  var pool=DECREES.filter(function(d){return !d.glass||CK.clock;});
+  var chosen=null,text='',tries=0,after=null;
+  var st=cur(),before=snapshot(st);
+  while(pool.length&&tries<30&&!chosen){
+    tries++;
+    var d=ckWeighted(pool);
+    if(d.act){
+      var t=d.act(st,side);
+      if(t===null){restore(st,before);pool=pool.filter(function(x){return x!==d;});continue;}
+      fixCastle(st);st.ep=-1;
+      if(!lawful(st)){restore(st,before);pool=pool.filter(function(x){return x!==d;});continue;}
+      after=snapshot(st);        /* keep it, but set the board back until the wheel lands */
+      restore(st,before);
+      text=t;chosen=d;
+    }else{text=d.text(side);chosen=d;}
+  }
+  if(!chosen){chosen={kind:'wonder'};text='The board considers '+my(side)+' position, and lets it stand.';}
+
+  /* An augury is called down by the astrologer's own master and is not
+     part of the ledger: it neither counts toward the tally nor disturbs
+     whose turn it is to receive a decree.                              */
+  if(!augury){
+    CK.ev[side]++;
+    CK.nextOwner=opp(CK.nextOwner);
+    CK.nextAt=G.moves.length+rnd(CK.minGap,CK.maxGap);
+  }
+  CK.pending=side;
+
+  ckRun(false);
+  clearTimeout(G.timer); G.thinking=false;
+  render();
+
+  var txtEl=document.getElementById('decreeText'),
+      dd=document.getElementById('decreeDelta'),
+      okb=document.getElementById('decreeOk');
+  document.getElementById('decreeWho').textContent=augury
+    ? (side===G.player?'An augury, called down by thine astrologer':'An augury upon the Automaton')
+    : (side===G.player?'A decree upon thee':'A decree upon the Automaton')+
+      ' — '+CK.ev[side]+' to '+CK.ev[opp(side)];
+  txtEl.textContent='';txtEl.classList.remove('in');
+  dd.hidden=true;okb.hidden=true;
+  document.getElementById('decree').classList.add('open');
+
+  var token=++CK.spin;
+  spinTo(chosen.kind||'wonder',function(){
+    if(token!==CK.spin)return;      /* a new game was called mid-spin */
+    /* now, and not before, the board takes it */
+    var delta=0;
+    if(after){restore(cur(),after);rebuildKeys();}
+    if(chosen.time){CK.ms[side]=Math.max(0,CK.ms[side]+chosen.time);delta=chosen.time;}
+    if(chosen.oppTime)CK.ms[opp(side)]=Math.max(0,CK.ms[opp(side)]+chosen.oppTime);
+    if(chosen.swap){var tmp=CK.ms.w;CK.ms.w=CK.ms.b;CK.ms.b=tmp;}
+    if(chosen.twice)CK.extra[side]=(CK.extra[side]||0)+1;
+    evaluate();render();
+
+    txtEl.textContent=text;txtEl.classList.add('in');
+    if(delta){dd.hidden=false;dd.textContent=(delta>0?'+':'−')+ckFmt(Math.abs(delta)).replace(/\.\d$/,'')+' upon the glass';}
+    else if(chosen.oppTime){dd.hidden=false;dd.textContent='+'+ckFmt(chosen.oppTime).replace(/\.\d$/,'')+' upon the other glass';}
+    else if(chosen.swap){dd.hidden=false;dd.textContent='the glasses exchanged';}
+    else dd.hidden=true;
+    okb.hidden=false;okb.focus();
+  });
+}
+
+function ckAck(){
+  document.getElementById('decree').classList.remove('open');
+  CK.pending=null;
+  render();
+  ckRun(true);
+  if(!G.over&&cur().turn!==G.player&&!G.thinking)scheduleBot();
+}
+
+/* ---------- the glass itself ---------- */
+function ckFmt(ms){
+  if(ms<0)ms=0;
+  var t=Math.ceil(ms/100)/10,m=Math.floor(t/60),s=t-m*60;
+  if(ms<20000)return m+':'+(s<10?'0':'')+s.toFixed(1);
+  var ss=String(Math.floor(s));if(ss.length<2)ss='0'+ss;
+  return m+':'+ss;
+}
+/* The glass is read from the hour itself, never counted frame by frame:
+   a hidden page is granted no frames, and a clock that forgets to run
+   while thou lookest away is no clock at all. CK.ms holdeth the time
+   standing at CK.since; what hath run since then is reckoned on demand. */
+function ckLeft(c){
+  if(CK.running&&CK.since!==null&&cur().turn===c)return Math.max(0,CK.ms[c]-(performance.now()-CK.since));
+  return CK.ms[c];
+}
+/* fold the elapsed time back into the store before touching it */
+function ckFold(){
+  if(CK.running&&CK.since!==null){
+    var c=cur().turn;
+    CK.ms[c]=Math.max(0,CK.ms[c]-(performance.now()-CK.since));
+    CK.since=performance.now();
+  }
+}
+function ckBeat(){
+  if(!CK.running){ckStop();return;}
+  var c=cur().turn;
+  if(ckLeft(c)<=0){
+    CK.ms[c]=0;CK.running=false;CK.since=null;CK.flag=c;ckStop();
+    clearTimeout(G.timer);G.thinking=false;
+    evaluate();render();return;
+  }
+  ckPaint();
+  CK.raf=requestAnimationFrame(ckBeat);
+}
+function ckStop(){
+  if(CK.raf){cancelAnimationFrame(CK.raf);CK.raf=null;}
+  if(CK.beat){clearInterval(CK.beat);CK.beat=null;}
+}
+function ckRun(on){
+  ckFold();
+  var want=!!on&&CK.clock&&CK.started&&!G.over&&!CK.pending;
+  if(want&&!CK.running)CK.since=performance.now();
+  if(!want)CK.since=null;
+  CK.running=want;
+  ckStop();
+  if(CK.running){
+    CK.raf=requestAnimationFrame(ckBeat);   /* smooth while thou watchest */
+    CK.beat=setInterval(ckBeat,250);        /* and still true while thou dost not */
+  }
+  ckPaint();
+}
+document.addEventListener('visibilitychange',function(){if(CK.running)ckBeat();});
+function ckPaint(){
+  var st=cur(); if(!st)return;          /* before the first game is set out */
+  var bot=opp(G.player);
+  document.getElementById('clock').hidden=!CK.clock;
+  document.getElementById('ckBotWho').textContent='The Automaton, '+(bot==='w'?'White':'Black');
+  document.getElementById('ckYouWho').textContent='Thee, '+(G.player==='w'?'White':'Black');
+  [[bot,'ckBot'],[G.player,'ckYou']].forEach(function(pr){
+    var c=pr[0],n=CK.ev[c],left=ckLeft(c);
+    document.getElementById(pr[1]+'T').textContent=ckFmt(left);
+    document.getElementById(pr[1]+'E').textContent=n?n+(n===1?' decree':' decrees'):'no decrees';
+    document.getElementById(pr[1]).className='ck'+
+      (st.turn===c&&!G.over?' on':'')+(left<20000?' low':'')+(CK.flag===c?' out':'');
+  });
+}
+function ckReset(){
+  ckStop();
+  CK.ms={w:CK.base,b:CK.base};
+  CK.ev={w:0,b:0};CK.extra={w:0,b:0};
+  CK.started=false;CK.running=false;CK.since=null;CK.flag=null;CK.pending=null;CK.spin++;
+  CK.nextOwner=Math.random()<0.5?'w':'b';
+  CK.nextAt=CK.opening+rnd(0,CK.maxGap-CK.minGap);
+  CK.augAt=-99;
+  document.getElementById('decree').classList.remove('open');
+  ckPaint();
+}
+
+/* ---------- hooks into the game ---------- */
+var _evaluate=evaluate;
+evaluate=function(){_evaluate();if(CK.flag)G.over={type:'flag',loser:CK.flag};};
+
+var _render=render;
+render=function(){
+  _render();
+  ckPaint();
+  if(CK.pending)document.getElementById('undoBtn').disabled=true;
+  if(!G.over&&CK.extra[cur().turn]>0){
+    var es=document.getElementById('status');
+    es.textContent+=cur().turn===G.player
+      ?' A second move is owed thee once this one is played.'
+      :' The Automaton is owed a second move.';
+  }
+  if(G.over&&G.over.type==='flag'){
+    var el=document.getElementById('status'),mine=CK.flag===G.player;
+    el.textContent=mine
+      ?'Thy glass is empty. The Automaton hath outlasted thee.'
+      :'The Automaton’s glass is empty. The hour is thine.';
+    el.className='status'+(mine?' bad':'');
+  }
+};
+
+var _doMove=doMove;
+doMove=function(m){
+  var mover=cur().turn;
+  ckFold();                                  /* credit what he hath spent */
+  CK.running=false;CK.since=null;ckStop();
+  CK.started=true;
+  if(CK.clock&&CK.inc)CK.ms[mover]+=CK.inc;
+  _doMove(m);
+  if(G.over){ckRun(false);return;}
+
+  /* A hand that moveth twice. It may not be taken while the other king
+     standeth in check - that were to take the king himself - so in that
+     case the second move is not spent, but kept for a later turn.       */
+  if(CK.extra[mover]>0&&!inCheck(cur().b,opp(mover))){
+    var st=cur(),was=st.turn;
+    st.turn=mover;st.ep=-1;
+    if(legal(st).length){
+      CK.extra[mover]--;
+      clearTimeout(G.timer);G.thinking=false;
+      rebuildKeys();evaluate();render();
+      if(!G.over&&cur().turn!==G.player)scheduleBot();
+      ckRun(true);
+      return;
+    }
+    st.turn=was;                     /* no second move to be had */
+  }
+
+  /* the astrologer calls down an augury upon his own master, though not
+     oftener than once in three half-moves, or the game is nothing but wheel */
+  if(CK.decrees&&m.piece[1]==='Z'&&G.moves.length-CK.augAt>=10){
+    CK.augAt=G.moves.length;
+    ckFire(mover,true);
+    return;
+  }
+  var side=cur().turn;
+  if(CK.decrees&&G.moves.length>=CK.nextAt&&side===CK.nextOwner)ckFire(side);
+  else ckRun(true);
+};
+
+document.getElementById('decreeOk').addEventListener('click',ckAck);
+document.getElementById('newBtn').addEventListener('click',function(){ckReset();render();});
+document.getElementById('side').addEventListener('change',ckPaint);
+document.getElementById('chaosBtn').addEventListener('click',function(){
+  CK.decrees=!CK.decrees;
+  this.textContent='Decrees: '+(CK.decrees?'on':'off');
+  this.setAttribute('aria-pressed',CK.decrees?'true':'false');
+});
+document.getElementById('tc').addEventListener('change',function(){
+  if(this.value==='off'){CK.clock=false;}
+  else{
+    var p=this.value.split('+');
+    CK.clock=true;CK.base=(+p[0])*60000;CK.inc=(+p[1])*1000;
+  }
+  if(!G.moves.length)ckReset();
+  render();
+});
+
+buildWheel();
 newGame();
+ckReset();
+render();
 })();
 </script>
 </body>
