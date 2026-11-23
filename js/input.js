@@ -51,7 +51,6 @@ addEventListener('wheel',e=>{ if(!running) return;
 },{passive:true});
 let lockFailed=false;
 function grabMouse(){
-  if('ontouchstart' in window || navigator.maxTouchPoints > 0){ lockFailed=true; return; }
   if(!cv.requestPointerLock){ lockFailed=true; return; }
   try{
     const p = cv.requestPointerLock();
